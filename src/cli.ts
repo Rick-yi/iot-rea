@@ -3,6 +3,7 @@
  * CLI adapter. It translates arguments and formats output; it contains no
  * analysis logic, so a future MCP adapter can bind the same workflows.
  */
+import { buildEvidencePack } from './app/advise.js';
 import { bleFrames } from './app/bleFrames.js';
 import { buildObservations } from './app/buildObservations.js';
 import { doctor } from './app/doctor.js';
@@ -10,6 +11,7 @@ import { diffFrames } from './app/diffFrames.js';
 import { exportKsy } from './app/exportKsy.js';
 import { inspectCapture } from './app/inspectCapture.js';
 import { inspectFirmware } from './app/inspectFirmware.js';
+import { loadHypothesisFile, verifyHypotheses } from './app/verifyHypotheses.js';
 import { IotReaError } from './contracts/errors.js';
 import { decodeSignalRecording } from './providers/sigrok.js';
 import { readSerialLog } from './providers/serial.js';
@@ -254,6 +256,65 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'evidence-pack': {
+      requireTarget(target, 'evidence-pack');
+      const result = await buildEvidencePack({
+        path: target,
+        maxFrames: number(flag(args, 'max-frames')),
+      });
+
+      const outPath = flag(args, 'out');
+      if (outPath === undefined || outPath === '-') {
+        printJson(result.pack);
+        return 0;
+      }
+
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(outPath, `${JSON.stringify(result.pack, null, 2)}\n`, 'utf8');
+      if (json) {
+        printJson({ ...result, out: outPath });
+      } else {
+        console.log(
+          `wrote ${outPath}: ${result.pack.samples.count} sample(s), ${result.pack.fields.length} field(s), ` +
+            `${result.pack.frames.length} frame(s) (${result.pack.framesOmitted} omitted)`,
+        );
+        printLimitations(result.evidence.limitations);
+      }
+      return 0;
+    }
+
+    case 'verify-hypotheses': {
+      requireTarget(target, 'verify-hypotheses');
+      const hypothesesPath = flag(args, 'hypotheses');
+      if (hypothesesPath === undefined) {
+        throw new IotReaError('invalid_request', '--hypotheses <file> is required');
+      }
+      const hypotheses = await loadHypothesisFile(hypothesesPath);
+      const result = await verifyHypotheses({ path: target, hypotheses });
+
+      if (json) {
+        printJson(result);
+        return 0;
+      }
+
+      console.log(
+        `verified ${result.summary.verified}, rejected ${result.summary.rejected}, ` +
+          `unverified ${result.summary.unverified}`,
+      );
+      for (const verdict of result.verdicts) {
+        console.log(`${verdict.status.padEnd(10)} ${verdict.id}: ${verdict.claim}`);
+        for (const check of verdict.checks) {
+          const suffix =
+            check.status === 'unsupported'
+              ? ` (${check.detail ?? 'unsupported'})`
+              : ` (${check.matched}/${check.total}${check.counterexamples.length > 0 ? `, counterexamples: ${check.counterexamples.join(', ')}` : ''})`;
+          console.log(`  ${check.status.padEnd(10)} ${check.verifier}${suffix}`);
+        }
+      }
+      printLimitations(result.evidence.limitations);
+      return 0;
+    }
+
     case 'decode-signals': {
       requireTarget(target, 'decode-signals');
       const decoders = list(flag(args, 'decoders'));
@@ -335,6 +396,9 @@ usage:
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
   iot-rea diff-frames <observations.json> [--min-samples n]
                         [--ksy <out.ksy>|--ksy -] [--id name] [--json]
+  iot-rea evidence-pack <observations.json> [--max-frames n]
+                        [--out <pack.json>|--out -] [--json]
+  iot-rea verify-hypotheses <observations.json> --hypotheses <file> [--json]
   iot-rea decode-signals <recording> --decoders uart:rx=RX:baudrate=9600
                         [--input-format vcd] [--annotations a=b] [--json]
   iot-rea read-serial <log> [--json]

@@ -6,11 +6,14 @@
  * definitions to the protocol.
  */
 import { z } from 'zod';
+import { buildEvidencePack } from '../app/advise.js';
 import { bleFrames } from '../app/bleFrames.js';
 import { buildObservations } from '../app/buildObservations.js';
 import { doctor } from '../app/doctor.js';
 import { diffFrames } from '../app/diffFrames.js';
 import { renderKaitai } from '../app/exportKsy.js';
+import { verifyHypotheses } from '../app/verifyHypotheses.js';
+import { hypothesisSchema } from '../contracts/hypotheses.js';
 import { inspectCapture } from '../app/inspectCapture.js';
 import { inspectFirmware } from '../app/inspectFirmware.js';
 import { IotReaError } from '../contracts/errors.js';
@@ -229,6 +232,31 @@ export const MCP_TOOLS: McpTool[] = [
         labelsPath: input.labels_path,
         labelsFormat: input.labels_format,
       }),
+  ),
+
+  define(
+    'evidence_pack',
+    'Build an evidence pack for an external proposer',
+    'Return a bounded, self-describing pack (samples, field candidates, variable regions, checksum candidates, unknowns, sample frames) plus the verifiers that can settle a claim. The core does not call a model; this is the seam an external proposer consumes.',
+    {
+      path: pathField.describe('JSON observations: [{frameId, vars, hex}] or {"observations": [...]}'),
+      max_frames: z.number().int().min(1).max(200).optional().describe('Sample frames to include, default 20'),
+    },
+    async (input) => buildEvidencePack({ path: input.path, maxFrames: input.max_frames }),
+  ),
+
+  define(
+    'verify_hypotheses',
+    'Settle proposed hypotheses deterministically',
+    'Recompute each proposed claim against the supplied samples. A claim is verified only when every usable sample passes; unsupported or invalid checks yield unverified, never a silent pass.',
+    {
+      path: pathField.describe('JSON observations the claims are checked against'),
+      hypotheses: z
+        .array(hypothesisSchema)
+        .min(1)
+        .describe('Claims with deterministic checks, e.g. type_fit or checksum_coverage'),
+    },
+    async (input) => verifyHypotheses({ path: input.path, hypotheses: input.hypotheses }),
   ),
 
   define(
