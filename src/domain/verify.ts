@@ -10,6 +10,7 @@ import {
   bcdFitArgsSchema,
   byteTransformArgsSchema,
   checksumCoverageArgsSchema,
+  ksyCompileArgsSchema,
   typeFitArgsSchema,
 } from '../contracts/hypotheses.js';
 import type { ChecksumAlgorithm } from './checksum.js';
@@ -22,6 +23,8 @@ export interface VerifierInfo {
   name: string;
   description: string;
   argsSchema: unknown;
+  /** True for verifiers that need I/O or external tools; the app layer runs them. */
+  requiresIo?: boolean;
 }
 
 export const VERIFIERS: VerifierInfo[] = [
@@ -46,8 +49,15 @@ export const VERIFIERS: VerifierInfo[] = [
   {
     name: 'byte_transform',
     description:
-      'Apply one byte-wise transform (xor, not, add, bit-reverse, nibble-swap) to the raw bytes, decode as a numeric type, and compare with labels. One transform per check; chains are not supported in v1.',
+      'Apply ordered byte-wise transforms (xor, not, add, bit-reverse, nibble-swap) to the raw bytes, decode as a numeric type, and compare with labels.',
     argsSchema: byteTransformArgsSchema,
+  },
+  {
+    name: 'ksy_compile',
+    description:
+      'Compile a Kaitai Struct schema with the caller-supplied kaitai-struct-compiler. The generated output is never executed; this checks that the schema is accepted by the compiler.',
+    argsSchema: ksyCompileArgsSchema,
+    requiresIo: true,
   },
 ];
 
@@ -61,6 +71,15 @@ export function runCheck(check: { verifier: string; args: Record<string, unknown
       return checkBcdFit(check.args, observations);
     case 'byte_transform':
       return checkByteTransform(check.args, observations);
+    case 'ksy_compile':
+      return {
+        verifier: 'ksy_compile',
+        status: 'unsupported',
+        matched: 0,
+        total: 0,
+        counterexamples: [],
+        detail: 'ksy_compile requires the application verifier (external compiler I/O)',
+      };
     default:
       return {
         verifier: check.verifier,
@@ -75,7 +94,15 @@ export function runCheck(check: { verifier: string; args: Record<string, unknown
 
 export function verifyHypothesis(hypothesis: Hypothesis, observations: Observation[]): HypothesisVerdict {
   const checks = hypothesis.checks.map((check) => runCheck(check, observations));
+  return verdictFromChecks(hypothesis.id, hypothesis.claim, checks);
+}
 
+/** Combine per-check results; rejection dominates, unsupported never passes. */
+export function verdictFromChecks(
+  id: string,
+  claim: string,
+  checks: CheckResult[],
+): HypothesisVerdict {
   let status: HypothesisVerdict['status'];
   if (checks.length === 0) {
     status = 'unverified';
@@ -87,7 +114,7 @@ export function verifyHypothesis(hypothesis: Hypothesis, observations: Observati
     status = 'verified';
   }
 
-  return { id: hypothesis.id, status, claim: hypothesis.claim, checks };
+  return { id, status, claim, checks };
 }
 
 export function checkTypeFit(rawArgs: unknown, observations: Observation[]): CheckResult {

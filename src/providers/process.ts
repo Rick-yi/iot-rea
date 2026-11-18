@@ -48,11 +48,23 @@ export function runLimited(options: RunOptions): Promise<RunOutcome> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
 
+  // Windows batch files cannot be spawned directly (EINVAL); route them
+  // through cmd.exe with verbatim arguments, quoting every token.
+  const isBatch = process.platform === 'win32' && /\.(bat|cmd)$/i.test(options.command);
+  const command = isBatch ? process.env.ComSpec ?? 'cmd.exe' : options.command;
+  const quoted = options.args.map((arg) => `"${arg}"`).join(' ');
+  // cmd /s /c needs one outer quote pair around a quoted first token. Build it
+  // explicitly: ""command" "arg"" (two opening, two closing quotes).
+  const args = isBatch
+    ? ['/d', '/s', '/c', `""${options.command}"${quoted === '' ? '' : ` ${quoted}`}"`]
+    : [...options.args];
+
   return new Promise((resolve, reject) => {
-    const child = spawn(options.command, [...options.args], {
+    const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
       windowsHide: true,
+      windowsVerbatimArguments: isBatch,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

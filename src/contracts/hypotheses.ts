@@ -7,7 +7,13 @@
  */
 import { z } from 'zod';
 
-export const verificationKindSchema = z.enum(['type_fit', 'checksum_coverage', 'bcd_fit', 'byte_transform']);
+export const verificationKindSchema = z.enum([
+  'type_fit',
+  'checksum_coverage',
+  'bcd_fit',
+  'byte_transform',
+  'ksy_compile',
+]);
 export type VerificationKind = z.infer<typeof verificationKindSchema>;
 
 export const hypothesisKindSchema = z.enum([
@@ -90,6 +96,18 @@ export const byteTransformArgsSchema = z.object({
   { message: 'provide transform or transforms' },
 );
 export type ByteTransformArgs = z.infer<typeof byteTransformArgsSchema>;
+
+export const ksyCompileArgsSchema = z
+  .object({
+    /** Inline .ksy text; exactly one of ksy or path is required. */
+    ksy: z.string().min(1).optional(),
+    path: z.string().min(1).optional(),
+    target: z.enum(['javascript', 'python', 'java']).optional(),
+  })
+  .refine((args) => args.ksy !== undefined || args.path !== undefined, {
+    message: 'provide ksy text or path',
+  });
+export type KsyCompileArgs = z.infer<typeof ksyCompileArgsSchema>;
 
 export const checksumCoverageArgsSchema = z.object({
   algorithm: z.enum(['sum8', 'xor8', 'sum16', 'crc16-ccitt-false', 'crc16-modbus', 'crc32']),

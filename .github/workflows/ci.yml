@@ -27,6 +27,15 @@ jobs:
         run: sigrok-cli --version
       - name: sigrok uart decoder
         run: sigrok-cli -L | grep -q uart
+      - name: Install Kaitai compiler
+        run: |
+          if ! java -version >/dev/null 2>&1; then
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-jre-headless
+          fi
+          curl -fsSL --retry 2             https://github.com/kaitai-io/kaitai_struct_compiler/releases/download/0.11/kaitai-struct-compiler-0.11.zip             -o /tmp/kst.zip
+          unzip -q /tmp/kst.zip -d /tmp/kst
+          chmod +x /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler
+          /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler --version
       - name: Fetch ATT corpus
         run: |
           for attempt in 1 2 3; do
@@ -40,6 +49,7 @@ jobs:
           # Integration tests are not allowed to skip silently in CI.
           IOT_REA_REQUIRE_TOOLS: "1"
           IOT_REA_BLE_CORPUS: /tmp/btatt_coverage.pcap
+          IOT_REA_KAITAI: /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler
       - run: npm run build
       - name: CLI smoke test
         run: |

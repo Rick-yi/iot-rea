@@ -74,6 +74,7 @@ node dist/cli.js verify-hypotheses observations.json --hypotheses hypotheses.jso
 | `checksum_coverage` | `algorithm`、`position`、`width`、`endian`、`coveredFrom`、`coveredTo` | 按覆盖区间重算校验并与存储值比较 |
 | `bcd_fit` | `offset`、`width`、`variable`、可选 `byteOffset`、`reverseBytes`、`factor` | 打包 BCD 解码；`byteOffset: 0x33` 表示线上字节曾被 +0x33；支持字节倒序与小数缩放；非法半字节或任一不匹配即拒绝 |
 | `byte_transform` | `offset`、`width`、`variable`、`type`、`endian`、`transform{kind, operand}` 或 `transforms[]`、可选 `factor` | 逐字节变换（`xor` / `not` / `add` / `bit-reverse` / `nibble-swap`）后按数值类型解码；`add` 表示线上已加上 operand，验证时减回；`transforms` 按数组顺序依次应用，用于链式编码 |
+| `ksy_compile` | `ksy` 文本或 `path`、可选 `target`（javascript/python/java） | 调用调用方提供的 `kaitai-struct-compiler` 编译 schema；**只验证编译器接受，不执行生成代码**；缺工具或参数非法时 `unsupported` |
 
 ## 扩展新 verifier
 
