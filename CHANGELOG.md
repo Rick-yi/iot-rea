@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.8.0] - 2026-11-18
+
+### Added
+
+- Ordered transform chains for `byte_transform` (`transforms[]`), with
+  order-sensitivity and empty-chain tests.
+- Synthetic btsnoop fixture (HCI ACL / L2CAP / ATT) and a CI integration test
+  for the BLE provider: channels, derived directions, stats and observations.
+
+### Changed
+
+- CI installs tshark and sigrok-cli and fails when a required tool is missing;
+  the temporary failure-annotation diagnostics were removed.
+- Synthetic captures are clearly documented as not real-device recordings.
+
 ## [0.7.0] - 2026-11-18
 
 ### Added
