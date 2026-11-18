@@ -174,7 +174,7 @@ npm test          # 缺少 tshark 时集成测试自动跳过，并保留 limita
 npm run build
 ```
 
-CI 会安装 tshark 并设置 `IOT_REA_REQUIRE_TOOLS=1`：在 CI 中缺失工具会直接失败，而不是把集成测试静默跳过。本地没有工具时保留 skip，方便离线开发。
+CI 会安装 tshark 与 sigrok-cli，并设置 `IOT_REA_REQUIRE_TOOLS=1`：在 CI 中缺失工具会直接失败，而不是把集成测试静默跳过。UART 的 `.vcd` 录制由 `test/fixtures/uartVcd.ts` 按 9600 8N1 生成，不需要提交二进制样本。本地没有工具时保留 skip，方便离线开发。
 
 测试夹具全部由代码生成（`test/helpers.ts`），不提交二进制样本。协议结论请按 `docs/specs/_template/spec.md` 记录，架构决策写 ADR。
 

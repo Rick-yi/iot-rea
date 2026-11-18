@@ -17,16 +17,17 @@ function onPath(tool: string): boolean {
   );
 }
 
-function tsharkAvailable(): boolean {
-  const configured = process.env.IOT_REA_TSHARK;
+function configuredOrPath(setting: string, tool: string): boolean {
+  const configured = process.env[setting];
   if (configured !== undefined && configured !== '') return path.isAbsolute(configured) && existsSync(configured);
-  return onPath('tshark');
+  return onPath(tool);
 }
 
 const required = process.env.IOT_REA_REQUIRE_TOOLS === '1';
 
 describe('toolchain', () => {
-  it.skipIf(!required)('tshark is available when the run requires tools', () => {
-    expect(tsharkAvailable()).toBe(true);
+  it.skipIf(!required)('external tools are available when the run requires tools', () => {
+    expect(configuredOrPath('IOT_REA_TSHARK', 'tshark')).toBe(true);
+    expect(configuredOrPath('IOT_REA_SIGROK', 'sigrok-cli')).toBe(true);
   });
 });
