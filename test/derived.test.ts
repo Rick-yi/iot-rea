@@ -98,6 +98,60 @@ describe('checksum-aware masking', () => {
   });
 });
 
+describe('length-field alignment', () => {
+  function payloadFrames(values: number[], lengths: number[], encodeLength: (total: number, payload: number) => number) {
+    return values.map((value, index) => {
+      const length = lengths[index] ?? 1;
+      const bytes = Buffer.alloc(2 + length);
+      bytes.writeUInt8(0xaa, 0);
+      bytes.writeUInt8(encodeLength(bytes.length, length), 1);
+      bytes.writeUInt8(value, 2);
+      for (let offset = 3; offset < bytes.length; offset += 1) bytes.writeUInt8(0x11, offset);
+      return { frameId: `p${index + 1}`, vars: { value }, bytes };
+    });
+  }
+
+  async function draftFor(frames: Observation[]) {
+    const dir = await mkdtemp(path.join(tmpdir(), 'iot-rea-align-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const file = path.join(dir, 'obs.json');
+    await writeFile(
+      file,
+      JSON.stringify(frames.map((obs) => ({ frameId: obs.frameId, vars: obs.vars, hex: obs.bytes.toString('hex') }))),
+      'utf8',
+    );
+    return diffFrames({ path: file });
+  }
+
+  it('uses a total-length field to compare the common payload window', async () => {
+    const frames = payloadFrames([0x10, 0x20, 0x30, 0x40], [1, 2, 3, 5], (total) => total);
+    const draft = await draftFor(frames);
+
+    expect(draft.derived[0]).toMatchObject({ offset: 1, relation: 'frame-length' });
+    expect(draft.differential.alignment).toEqual({
+      kind: 'length-field',
+      fieldOffset: 1,
+      fieldWidth: 1,
+      payloadStart: 2,
+      payloadLength: 1,
+    });
+    expect(draft.differential.alignedLength).toBe(3);
+    expect(draft.differential.unknowns.join(' ')).toContain('length field at 0x1');
+
+    const field = draft.fields.find((candidate) => candidate.variable === 'value');
+    expect(field).toMatchObject({ offset: 2, type: 'u8', confidence: 1 });
+  });
+
+  it('uses a remaining-length field as well', async () => {
+    const frames = payloadFrames([0x10, 0x20, 0x30, 0x40], [1, 2, 3, 5], (_total, payload) => payload);
+    const draft = await draftFor(frames);
+
+    expect(draft.derived[0]?.relation).toBe('remaining-length');
+    expect(draft.differential.alignment).toMatchObject({ payloadStart: 2, payloadLength: 1 });
+    expect(draft.fields.find((candidate) => candidate.variable === 'value')?.offset).toBe(2);
+  });
+});
+
 describe('Kaitai export', () => {
   it('places a detected length field in the sequence with its relation', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'iot-rea-derived-ksy-'));

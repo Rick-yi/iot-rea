@@ -35,6 +35,7 @@ export interface EvidencePack {
     alignedLength: number;
     lengths: number[];
     excludedFrameIds: string[];
+    alignment: DiffReport['alignment'] | null;
   };
   fields: FieldCandidate[];
   differential: {
@@ -77,6 +78,7 @@ export async function buildEvidencePack(input: EvidencePackInput): Promise<Advis
       alignedLength: draft.differential.alignedLength,
       lengths: draft.differential.lengths,
       excludedFrameIds: draft.differential.excludedFrameIds,
+      alignment: draft.differential.alignment ?? null,
     },
     fields: draft.fields,
     differential: { regions: draft.differential.regions, unknowns: draft.differential.unknowns },
