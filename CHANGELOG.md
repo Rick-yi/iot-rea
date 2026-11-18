@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.10.0] - 2026-11-18
+
+### Added
+
+- `ksy_compile` verifier: compile a caller-supplied Kaitai schema with
+  `kaitai-struct-compiler`; generated parsers are never executed.
+- CI installs the compiler and the toolchain guard requires it.
+- Windows `.bat`/`.cmd` tools can now be configured (cmd.exe invocation).
+
+### Changed
+
+- App-level verifiers can perform I/O; verdict combination is shared with
+  the pure domain verifiers.
+
 ## [0.9.0] - 2026-11-18
 
 ### Added

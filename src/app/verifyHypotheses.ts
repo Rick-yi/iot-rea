@@ -8,7 +8,9 @@ import type { Evidence } from '../contracts/evidence.js';
 import { IotReaError } from '../contracts/errors.js';
 import type { Hypothesis, HypothesisVerdict, HypothesisFile } from '../contracts/hypotheses.js';
 import { hypothesisFileSchema, hypothesisSchema } from '../contracts/hypotheses.js';
-import { verifyHypothesis } from '../domain/verify.js';
+import { runCheck, verdictFromChecks } from '../domain/verify.js';
+import type { CheckResult } from '../contracts/hypotheses.js';
+import { checkKsyCompile } from './verifiers/ksyCompile.js';
 import { loadObservations } from './diffFrames.js';
 
 export const verifyHypothesesInputSchema = z.object({
@@ -50,7 +52,18 @@ export async function loadHypothesisFile(pathname: string): Promise<Hypothesis[]
 export async function verifyHypotheses(input: VerifyHypothesesInput): Promise<VerifyHypothesesResult> {
   const parsed = verifyHypothesesInputSchema.parse(input);
   const loaded = await loadObservations(parsed.path);
-  const verdicts = parsed.hypotheses.map((hypothesis) => verifyHypothesis(hypothesis, loaded.observations));
+  const verdicts = await Promise.all(
+    parsed.hypotheses.map(async (hypothesis) => {
+      const checks: CheckResult[] = await Promise.all(
+        hypothesis.checks.map((check) =>
+          check.verifier === 'ksy_compile'
+            ? checkKsyCompile(check.args)
+            : Promise.resolve(runCheck(check, loaded.observations)),
+        ),
+      );
+      return verdictFromChecks(hypothesis.id, hypothesis.claim, checks);
+    }),
+  );
 
   const summary = { verified: 0, rejected: 0, unverified: 0 };
   for (const verdict of verdicts) summary[verdict.status] += 1;

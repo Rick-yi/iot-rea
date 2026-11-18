@@ -238,6 +238,7 @@ describe('evidence pack', () => {
       'checksum_coverage',
       'bcd_fit',
       'byte_transform',
+      'ksy_compile',
     ]);
     expect(pack.notes.join(' ')).toContain('not the whole capture');
     expect(evidence.source.sha256).toHaveLength(64);

@@ -29,5 +29,6 @@ describe('toolchain', () => {
   it.skipIf(!required)('external tools are available when the run requires tools', () => {
     expect(configuredOrPath('IOT_REA_TSHARK', 'tshark')).toBe(true);
     expect(configuredOrPath('IOT_REA_SIGROK', 'sigrok-cli')).toBe(true);
+    expect(configuredOrPath('IOT_REA_KAITAI', 'kaitai-struct-compiler')).toBe(true);
   });
 });
