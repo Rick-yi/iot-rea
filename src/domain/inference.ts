@@ -113,7 +113,7 @@ function toNumber(value: number | string | boolean | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function matches(decoded: number, expected: number, type: FieldType): boolean {
+export function matchesDecodedValue(decoded: number, expected: number, type: FieldType): boolean {
   if (type === 'f32') {
     const scale = Math.max(1, Math.abs(expected));
     return Math.abs(decoded - expected) <= scale * 1e-4;
@@ -185,7 +185,7 @@ function bestNumericCandidate(
           const raw = decodeNumber(spec.type, spec.endian, obs.bytes, offset, spec.width);
           if (raw === null) continue;
           const value = transform.kind === 'scaled' ? raw / (transform.factor ?? 1) : raw;
-          if (matches(value, expected, spec.type)) matched += 1;
+          if (matchesDecodedValue(value, expected, spec.type)) matched += 1;
         }
         const confidence = matched / total;
         if (confidence < CONFIDENCE_FLOOR) continue;

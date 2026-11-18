@@ -39,6 +39,8 @@ describe('tool definitions', () => {
       'read_serial',
       'build_observations',
       'ble_frames',
+      'evidence_pack',
+      'verify_hypotheses',
       'export_ksy',
     ]);
     expect(new Set(names).size).toBe(names.length);
@@ -125,5 +127,57 @@ describe('MCP protocol', () => {
     expect(body.text).toContain('type: f4le');
     expect(body.text).toContain('checksum_sum8');
     expect((body.unknowns ?? []).length).toBeGreaterThan(0);
+  });
+
+  it('serves the advisor seam: pack, then verdict', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'iot-rea-mcp-seam-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const file = path.join(dir, 'obs.json');
+    const payload = sensorObservations([21.5, 22.25, 23]).map((obs) => ({
+      frameId: obs.frameId,
+      vars: obs.vars,
+      hex: obs.bytes.toString('hex'),
+    }));
+    await writeFile(file, JSON.stringify(payload), 'utf8');
+
+    const client = await connect();
+    const packResult = await client.callTool({
+      name: 'evidence_pack',
+      arguments: { path: file, max_frames: 2 },
+    });
+    expect(packResult.isError).toBeUndefined();
+    const pack = JSON.parse((packResult.content as Array<{ text: string }>)[0]?.text ?? '{}') as {
+      pack?: { schemaVersion?: number; frames?: unknown[]; verifiers?: Array<{ name: string }> };
+    };
+    expect(pack.pack?.schemaVersion).toBe(1);
+    expect(pack.pack?.frames).toHaveLength(2);
+    expect(pack.pack?.verifiers?.map((verifier) => verifier.name)).toContain('type_fit');
+
+    const verdictResult = await client.callTool({
+      name: 'verify_hypotheses',
+      arguments: {
+        path: file,
+        hypotheses: [
+          {
+            id: 'h1',
+            kind: 'field_semantics',
+            claim: 'offset 4 is f32le temperature',
+            checks: [
+              {
+                verifier: 'type_fit',
+                args: { offset: 4, width: 4, type: 'f32', endian: 'le', variable: 'temperature' },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(verdictResult.isError).toBeUndefined();
+    const verdicts = JSON.parse((verdictResult.content as Array<{ text: string }>)[0]?.text ?? '{}') as {
+      summary?: { verified: number };
+      verdicts?: Array<{ status: string }>;
+    };
+    expect(verdicts.summary?.verified).toBe(1);
+    expect(verdicts.verdicts?.[0]?.status).toBe('verified');
   });
 });

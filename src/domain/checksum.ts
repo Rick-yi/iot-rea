@@ -35,14 +35,39 @@ export interface ChecksumReport {
   unknowns: string[];
 }
 
-const ALGORITHMS: Array<{ name: ChecksumAlgorithm; width: number; compute: (bytes: Buffer) => number }> = [
-  { name: 'sum8', width: 1, compute: (bytes) => bytes.reduce((acc, byte) => (acc + byte) & 0xff, 0) },
-  { name: 'xor8', width: 1, compute: (bytes) => bytes.reduce((acc, byte) => acc ^ byte, 0) },
-  { name: 'sum16', width: 2, compute: (bytes) => bytes.reduce((acc, byte) => (acc + byte) & 0xffff, 0) },
-  { name: 'crc16-ccitt-false', width: 2, compute: (bytes) => crc16Ccitt(bytes) },
-  { name: 'crc16-modbus', width: 2, compute: (bytes) => crc16Modbus(bytes) },
-  { name: 'crc32', width: 4, compute: (bytes) => crc32(bytes) },
-];
+export const CHECKSUM_WIDTHS: Record<ChecksumAlgorithm, number> = {
+  sum8: 1,
+  xor8: 1,
+  sum16: 2,
+  'crc16-ccitt-false': 2,
+  'crc16-modbus': 2,
+  crc32: 4,
+};
+
+export function computeChecksum(algorithm: ChecksumAlgorithm, bytes: Buffer): number {
+  switch (algorithm) {
+    case 'sum8':
+      return bytes.reduce((acc, byte) => (acc + byte) & 0xff, 0);
+    case 'xor8':
+      return bytes.reduce((acc, byte) => acc ^ byte, 0);
+    case 'sum16':
+      return bytes.reduce((acc, byte) => (acc + byte) & 0xffff, 0);
+    case 'crc16-ccitt-false':
+      return crc16Ccitt(bytes);
+    case 'crc16-modbus':
+      return crc16Modbus(bytes);
+    case 'crc32':
+      return crc32(bytes);
+  }
+}
+
+const ALGORITHMS: Array<{ name: ChecksumAlgorithm; width: number; compute: (bytes: Buffer) => number }> = (
+  Object.keys(CHECKSUM_WIDTHS) as ChecksumAlgorithm[]
+).map((name) => ({
+  name,
+  width: CHECKSUM_WIDTHS[name],
+  compute: (bytes) => computeChecksum(name, bytes),
+}));
 
 export function checksumCandidates(observations: Observation[]): ChecksumReport {
   const usable = observations.filter((obs) => obs.bytes.length >= 4);

@@ -115,6 +115,20 @@ seq:
     doc: "offset 0x4, width 4, confidence 1.00; variable temperature"
 ```
 
+## 外部模型接入缝（实验性）
+
+核心包不调用任何模型。外部提议者（模型或人）通过两个命令与核心交互：
+
+```bash
+# 1. 生成紧凑证据包（含可用 verifier 清单）
+node dist/cli.js evidence-pack observations.json --max-frames 20 --out pack.json
+
+# 2. 对提议者产出的假设做确定性裁决
+node dist/cli.js verify-hypotheses observations.json --hypotheses hypotheses.json
+```
+
+裁决只有三种结果：`verified`（所有 check 在每个可用样本上成立）、`rejected`（有反例）、`unverified`（没有可执行的 check，或 verifier 未注册/参数非法）。模型的贡献停留在"提议"，事实仍由代码重算。完整契约、示例与 verifier 扩展方式见 [docs/advisor-seam.md](docs/advisor-seam.md)，决策记录见 [ADR 0003](docs/adr/0003-advisor-seam.md)。
+
 ## 支持的输入
 
 | 输入 | 提供者 | 说明 |

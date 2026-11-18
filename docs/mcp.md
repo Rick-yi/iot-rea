@@ -50,6 +50,8 @@ claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
 | `read_serial` | `path` | 归一化帧、跳过行数 |
 | `build_observations` | `path`、`payload_field`、`labels_path`、`labels_format`、`display_filter`、`decode_as[]`、`packet_limit` | 可直接给 `diff_frames` 的观测、stats、未知项 |
 | `ble_frames` | `path`、`peer_address`、`display_filter`、`packet_limit`、`labels_path` | `att:0xhhhh` 通道帧、方向统计、未知项；带标签时含观测 |
+| `evidence_pack` | `path`、`max_frames` | 证据包：样本、字段候选、变异区段、校验候选、未知项、样本帧、可用 verifier |
+| `verify_hypotheses` | `path`、`hypotheses[]` | 每条假设的 `verified` / `rejected` / `unverified` 与反例 |
 | `export_ksy` | `path`（观测 JSON）、`id` | 草稿 `.ksy` 文本、被丢弃的重叠假设、未知项（不写文件） |
 
 ## 约定
