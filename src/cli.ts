@@ -242,6 +242,13 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'mcp': {
+      // stdout belongs to the protocol; the server logs to stderr only.
+      const { startMcpServer } = await import('./mcp/server.js');
+      await startMcpServer();
+      return 0;
+    }
+
     case 'read-serial': {
       requireTarget(target, 'read-serial');
       const result = await readSerialLog(target);
@@ -296,6 +303,7 @@ usage:
   iot-rea decode-signals <recording> --decoders uart:rx=RX:baudrate=9600
                         [--input-format vcd] [--annotations a=b] [--json]
   iot-rea read-serial <log> [--json]
+  iot-rea mcp                     # MCP server over stdio
 
 environment:
   IOT_REA_TSHARK   absolute path to tshark

@@ -28,9 +28,12 @@ node dist/cli.js inspect-firmware firmware.uf2 --extract out/
 
 # 串口录制日志
 node dist/cli.js read-serial serial.log
+
+# 以 MCP 服务运行，供 agent 调用
+node dist/cli.js mcp
 ```
 
-所有命令都支持 `--json` 输出完整结果与证据。
+所有命令都支持 `--json` 输出完整结果与证据。MCP 客户端配置与工具说明见 [docs/mcp.md](docs/mcp.md)。
 
 ## 从抓包生成差分样本
 
@@ -126,10 +129,12 @@ providers   tshark / sigrok / serial 适配器（统一限额、私有副本、d
    ↑
 domain      Frame 归一化、差分、类型推断、校验识别、固件容器解析
    ↑
-app / cli   工作流与参数翻译
+app        工作流（与传输层无关）
+   ↑
+cli / mcp   参数翻译与协议绑定
 ```
 
-依赖只向内。CLI 只做参数翻译与格式化；`src/contracts/operations.ts` 是未来 MCP 适配器的绑定点，工作流本身不感知传输层。
+依赖只向内。CLI 与 MCP 服务都只做参数翻译/协议绑定，分析逻辑只在 `src/app/` 实现一次。
 
 ## 开发
 
@@ -141,9 +146,9 @@ npm run build
 
 测试夹具全部由代码生成（`test/helpers.ts`），不提交二进制样本。协议结论请按 `docs/specs/_template/spec.md` 记录，架构决策写 ADR。
 
-## 不在 v1 范围
+## 不在当前范围
 
-MCP server、实时抓包、设备在环实验台、重放与位翻转、加密载荷破解、binwalk/unblob 深度提取。
+实时抓包与网卡控制、设备在环实验台、重放与位翻转、加密载荷破解、binwalk/unblob 深度提取。
 
 ## License
 
