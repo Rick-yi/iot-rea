@@ -10,6 +10,7 @@ import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
 import { exportKsy } from './app/exportKsy.js';
 import { inspectCapture } from './app/inspectCapture.js';
+import { inferTransitions } from './app/inferTransitions.js';
 import { inspectFirmware } from './app/inspectFirmware.js';
 import { loadHypothesisFile, verifyHypotheses } from './app/verifyHypotheses.js';
 import { IotReaError } from './contracts/errors.js';
@@ -256,6 +257,41 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'infer-transitions': {
+      requireTarget(target, 'infer-transitions');
+      const result = await inferTransitions({
+        path: target,
+        signatureBytes: number(flag(args, 'signature-bytes')),
+        channel: flag(args, 'channel'),
+      });
+
+      const mermaidTarget = flag(args, 'mermaid');
+      if (mermaidTarget === '-') {
+        process.stdout.write(result.mermaid);
+        return 0;
+      }
+      if (mermaidTarget !== undefined) {
+        const { writeFile } = await import('node:fs/promises');
+        await writeFile(mermaidTarget, result.mermaid, 'utf8');
+      }
+
+      if (json) {
+        printJson(mermaidTarget === undefined ? result : { ...result, mermaidPath: mermaidTarget });
+        return 0;
+      }
+
+      console.log(
+        `frames ${result.stats.frames}, channels ${result.stats.channels}, ` +
+          `nodes ${result.nodes.length}, edges ${result.stats.edges} (${result.stats.singleObservationEdges} single)`,
+      );
+      for (const edge of result.edges) {
+        console.log(`${edge.from} -> ${edge.to} x${edge.count}`);
+      }
+      if (mermaidTarget !== undefined) console.log(`wrote mermaid ${mermaidTarget}`);
+      printLimitations(result.unknowns);
+      return 0;
+    }
+
     case 'evidence-pack': {
       requireTarget(target, 'evidence-pack');
       const result = await buildEvidencePack({
@@ -396,6 +432,8 @@ usage:
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
   iot-rea diff-frames <observations.json> [--min-samples n]
                         [--ksy <out.ksy>|--ksy -] [--id name] [--json]
+  iot-rea infer-transitions <frames.json> [--signature-bytes n]
+                        [--channel name] [--mermaid <out.md>|--mermaid -] [--json]
   iot-rea evidence-pack <observations.json> [--max-frames n]
                         [--out <pack.json>|--out -] [--json]
   iot-rea verify-hypotheses <observations.json> --hypotheses <file> [--json]

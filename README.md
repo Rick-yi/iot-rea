@@ -115,6 +115,20 @@ seq:
     doc: "offset 0x4, width 4, confidence 1.00; variable temperature"
 ```
 
+## 会话迁移图（实验性）
+
+把一串帧变成"谁跟在谁后面"的观察图：
+
+```bash
+node dist/cli.js infer-transitions frames.json \
+  --signature-bytes 2 \
+  --mermaid flow.md
+```
+
+输入是帧数组：`{"frameId","direction","channel","hex","timestampMs"?}`；`read-serial` / `ble-frames` 输出的行（含 `nativeId`）也可以直接喂进来。输出节点计数、边计数、Mermaid 图，以及 unknowns。
+
+必须明确的边界：它**只统计观察到的相邻迁移**，不是隐藏状态机。签名只取前 N 字节，共享前缀的消息会被合并；只出现一次的边、缺失时间戳（退化为文件顺序）、未知方向都会写进 `unknowns`。
+
 ## 外部模型接入缝（实验性）
 
 核心包不调用任何模型。外部提议者（模型或人）通过两个命令与核心交互：
