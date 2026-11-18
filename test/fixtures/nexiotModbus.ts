@@ -68,6 +68,26 @@ export function buildReadHoldingResponse(slave: number, registers: number[]): Bu
   return appendModbusCrc(pdu);
 }
 
+/**
+ * Modbus TCP read-holding response.
+ *
+ * The upstream `isModbusTcp` rule is used as the sanity check: protocol id is
+ * 0x0000 and the MBAP length field equals totalBytes - 6.
+ */
+export function buildReadHoldingTcp(transactionId: number, unitId: number, registers: number[]): Buffer {
+  const pdu = Buffer.alloc(3 + registers.length * 2);
+  pdu.writeUInt8(unitId, 0);
+  pdu.writeUInt8(0x03, 1);
+  pdu.writeUInt8(registers.length * 2, 2);
+  registers.forEach((value, index) => pdu.writeUInt16BE(value, 3 + index * 2));
+
+  const mbap = Buffer.alloc(6);
+  mbap.writeUInt16BE(transactionId, 0);
+  mbap.writeUInt16BE(0x0000, 2);
+  mbap.writeUInt16BE(pdu.length, 4); // unit id + PDU
+  return Buffer.concat([mbap, pdu]);
+}
+
 /** Observations for a response whose single register changes per sample. */
 export function singleRegisterObservations(values: number[], slave = 1): Observation[] {
   return values.map((value, index) => ({

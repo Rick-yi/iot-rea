@@ -43,6 +43,24 @@
 
 （完整帧由 `buildReadHoldingResponse` 生成，CRC 由独立的参考实现计算。）
 
+## Modbus TCP（MBAP + PDU）
+
+上游 `isModbusTcp` 规则：`protocol id == 0x0000` 且 `length == totalBytes - 6`。
+测试帧为 MBAP（事务号/协议号/长度）+ unitId + 功能码 0x03 + byteCount + 寄存器。
+
+| 偏移 | 宽度 | 名称 | 类型 | 证据 |
+|---|---|---|---|---|
+| 0x00 | 2 | transactionId | u16 be | 差分样本 tx1–tx5（0x0102–0x0506） |
+| 0x02 | 2 | protocolId | u16 常量 0x0000 | 全部样本 |
+| 0x04 | 2 | length | u16 常量（= total-6） | 全部样本 |
+| 0x06 | 1 | unitId | u8 常量 1 | 全部样本 |
+| 0x07 | 1 | function | u8 常量 0x03 | 全部样本 |
+| 0x08 | 1 | byteCount | u8 常量 0x02 | 全部样本 |
+| 0x09 | 2 | register | u16 be | 差分样本 t1–t5 |
+
+结果：事务号变化时区段恰为 `0x00–0x01`；寄存器变化时区段恰为 `0x09–0x0A`；
+两者均识别为 `u16 be`；TCP 无校验，框架明确返回"没有校验算法"而不是编造一个。
+
 ## 复现命令
 
 ```bash
