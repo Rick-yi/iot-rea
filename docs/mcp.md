@@ -48,6 +48,9 @@ claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
 | `inspect_firmware` | `path`、可选 `extract_to` | 容器清单与区域，或提取结果 |
 | `decode_signals` | `path`、`decoders[]`、`input_format`、`annotations[]` | 解码文本行 + 分页窗口 |
 | `read_serial` | `path` | 归一化帧、跳过行数 |
+| `build_observations` | `path`、`payload_field`、`labels_path`、`labels_format`、`display_filter`、`decode_as[]`、`packet_limit` | 可直接给 `diff_frames` 的观测、stats、未知项 |
+| `ble_frames` | `path`、`peer_address`、`display_filter`、`packet_limit`、`labels_path` | `att:0xhhhh` 通道帧、方向统计、未知项；带标签时含观测 |
+| `export_ksy` | `path`（观测 JSON）、`id` | 草稿 `.ksy` 文本、被丢弃的重叠假设、未知项（不写文件） |
 
 ## 约定
 
@@ -55,6 +58,7 @@ claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
 - 失败不会伪装成空结果：结构化错误带 `code`（如 `missing_tool`、`output_limit`、`integrity_failure`），并保留已捕获的生产者输出。
 - `output_window` 的 `total` 只描述所选过滤器 / 读入范围内的匹配数；空页不证明范围外不存在。
 - 输入路径按调用方本地路径解析；服务不下载、不安装、不连接设备。
+- 工具默认声明 `readOnlyHint: true`；只有 `inspect_firmware` 可为 `false`，因为它的 `extract_to` 会写文件。`export_ksy` 只返回文本，落在调用方手里。
 
 ## 给 agent 的提示词示例
 
