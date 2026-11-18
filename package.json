@@ -3,6 +3,24 @@
   "version": "0.1.0",
   "description": "Evidence-first reverse engineering for IoT captures, signals and firmware",
   "license": "MIT",
+  "author": "Rick-yi",
+  "keywords": [
+    "iot",
+    "reverse-engineering",
+    "protocol-analysis",
+    "pcap",
+    "firmware",
+    "uf2",
+    "mcp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rick-yi/iot-rea.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rick-yi/iot-rea/issues"
+  },
+  "homepage": "https://github.com/Rick-yi/iot-rea#readme",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

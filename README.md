@@ -101,3 +101,7 @@ npm run build
 ## 不在 v1 范围
 
 MCP server、实时抓包、设备在环实验台、重放与位翻转、加密载荷破解、binwalk/unblob 深度提取。
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。
