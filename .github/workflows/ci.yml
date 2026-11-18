@@ -21,6 +21,12 @@ jobs:
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
       - name: tshark version
         run: tshark --version
+      - name: Install sigrok-cli
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y sigrok-cli
+      - name: sigrok version
+        run: sigrok-cli --version
+      - name: sigrok uart decoder
+        run: sigrok-cli -L | grep -q uart
       - run: npm run typecheck
       - run: npm test
         env:
