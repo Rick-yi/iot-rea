@@ -39,7 +39,7 @@
 | 变异区段 | `0x10–0x12`（低两字节 + CS）；高两字节因数值 < 10000 保持 `00 00` |
 | 字段推断 | 对 `energy` **没有**输出类型假设，写入 unknowns："no field hypothesis" —— 编码字段没有被强行解释 |
 | 校验识别 | `sum8 @0x12`，覆盖 `0x00–0x11`，5/5 一致 |
-| 假设裁决 | CS 覆盖范围 → `verified`；"u32be 恒等解码" → `rejected`；"BCD + 0x33" 因无对应 verifier → `unverified` |
+| 假设裁决 | CS 覆盖范围 → `verified`；"u32be 恒等解码" → `rejected`；"BCD + 0x33" → `verified`（`bcd_fit`，5/5） |
 | Kaitai 草稿 | 编码值保持为 `reserved_*` 间隙；只输出 `checksum_sum8` |
 
 ## 未知
@@ -47,7 +47,7 @@
 - [ ] 数值是否 BCD、小数位与单位（上游只给字节变换，不给语义）
 - [ ] DI 是否也应参与 `+0x33`（上游 `hex_diReverse` 未包含该步）
 - [ ] `C` 控制码与 `L` 长度的取值规则
-- [ ] 是否需要新增 `bcd_fit` / `byte_offset_transform` verifier（目前这类假设只能停留在 `unverified`）
+- [ ] 其他变换（取反、异或、位交换）仍无 verifier，这类假设会停留在 `unverified`
 
 ## 复现
 

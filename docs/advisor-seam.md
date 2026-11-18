@@ -72,6 +72,7 @@ node dist/cli.js verify-hypotheses observations.json --hypotheses hypotheses.jso
 |---|---|---|
 | `type_fit` | `offset`、`width`、`type`、`endian`、`variable`、可选 `factor` | 解码值与标签逐样本比对；支持 `expected = raw / factor` |
 | `checksum_coverage` | `algorithm`、`position`、`width`、`endian`、`coveredFrom`、`coveredTo` | 按覆盖区间重算校验并与存储值比较 |
+| `bcd_fit` | `offset`、`width`、`variable`、可选 `byteOffset`、`reverseBytes`、`factor` | 打包 BCD 解码；`byteOffset: 0x33` 表示线上字节曾被 +0x33；支持字节倒序与小数缩放；非法半字节或任一不匹配即拒绝 |
 
 ## 扩展新 verifier
 

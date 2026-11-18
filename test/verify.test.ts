@@ -105,6 +105,82 @@ describe('checksum_coverage', () => {
   });
 });
 
+describe('bcd_fit', () => {
+  function bcdBytes(value: number, width = 4): Buffer {
+    const digits = value.toString().padStart(width * 2, '0');
+    const bytes = Buffer.alloc(width);
+    for (let index = 0; index < width; index += 1) {
+      bytes[index] = Number.parseInt(`${digits[index * 2]}${digits[index * 2 + 1]}`, 16);
+    }
+    return bytes;
+  }
+
+  function observationsWith(transform: (bytes: Buffer) => Buffer, values: number[], labels: number[]) {
+    return values.map((value, index) => ({
+      frameId: `b${index + 1}`,
+      vars: { energy: labels[index] ?? value },
+      bytes: transform(bcdBytes(value)),
+    }));
+  }
+
+  it('verifies packed BCD behind a +0x33 byte offset', () => {
+    const observations = observationsWith(
+      (bytes) => Buffer.from(bytes.map((byte) => (byte + 0x33) & 0xff)),
+      [1234, 2000, 3456],
+      [1234, 2000, 3456],
+    );
+
+    const verdict = verifyHypothesis(
+      claim([
+        { verifier: 'bcd_fit', args: { offset: 0, width: 4, variable: 'energy', byteOffset: 0x33 } },
+      ], 'scaling'),
+      observations,
+    );
+
+    expect(verdict.status).toBe('verified');
+    expect(verdict.checks[0]).toMatchObject({ matched: 3, total: 3, counterexamples: [] });
+  });
+
+  it('supports byte reversal and a decimal factor', () => {
+    const observations = [12.34, 56.78].map((value, index) => {
+      const raw = bcdBytes(Math.round(value * 100));
+      const reversed = Buffer.from([...raw].reverse());
+      return { frameId: `r${index + 1}`, vars: { energy: value }, bytes: reversed };
+    });
+
+    const verdict = verifyHypothesis(
+      claim([
+        {
+          verifier: 'bcd_fit',
+          args: { offset: 0, width: 4, variable: 'energy', reverseBytes: true, factor: 100 },
+        },
+      ], 'scaling'),
+      observations,
+    );
+
+    expect(verdict.status).toBe('verified');
+  });
+
+  it('rejects invalid BCD nibbles and a missing byte offset', () => {
+    const invalid = [{ frameId: 'x', vars: { energy: 1234 }, bytes: Buffer.from([0xab, 0xcd, 0x12, 0x34]) }];
+    const invalidVerdict = verifyHypothesis(
+      claim([{ verifier: 'bcd_fit', args: { offset: 0, width: 4, variable: 'energy' } }], 'scaling'),
+      invalid,
+    );
+
+    expect(invalidVerdict.status).toBe('rejected');
+    expect(invalidVerdict.checks[0]?.counterexamples).toEqual(['x']);
+
+    const encoded = [{ frameId: 'y', vars: { energy: 1234 }, bytes: Buffer.from([0x33, 0x33, 0x45, 0x67]) }];
+    const encodedVerdict = verifyHypothesis(
+      claim([{ verifier: 'bcd_fit', args: { offset: 0, width: 4, variable: 'energy' } }], 'scaling'),
+      encoded,
+    );
+
+    expect(encodedVerdict.status).toBe('rejected');
+  });
+});
+
 describe('verdict semantics', () => {
   it('leaves unknown verifiers unverified, not rejected', () => {
     const verdict = verifyHypothesis(
@@ -157,7 +233,7 @@ describe('evidence pack', () => {
     expect(pack.schemaVersion).toBe(1);
     expect(pack.frames).toHaveLength(3);
     expect(pack.framesOmitted).toBe(2);
-    expect(pack.verifiers.map((verifier) => verifier.name)).toEqual(['type_fit', 'checksum_coverage']);
+    expect(pack.verifiers.map((verifier) => verifier.name)).toEqual(['type_fit', 'checksum_coverage', 'bcd_fit']);
     expect(pack.notes.join(' ')).toContain('not the whole capture');
     expect(evidence.source.sha256).toHaveLength(64);
   });

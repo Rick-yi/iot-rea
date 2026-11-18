@@ -143,15 +143,22 @@ describe('hypothesis verdicts over DL/T 645 frames', () => {
         {
           id: 'bcd-transform',
           kind: 'scaling',
-          claim: 'energy is BCD with a +0x33 byte offset',
+          claim: 'energy is packed BCD whose bytes were shifted by +0x33',
           evidenceRefs: [],
-          checks: [{ verifier: 'bcd_fit', args: { offset: 14, width: 4, variable: 'energy', offset33: true } }],
+          checks: [
+            {
+              verifier: 'bcd_fit',
+              args: { offset: 14, width: 4, variable: 'energy', byteOffset: 0x33 },
+            },
+          ],
         },
       ],
     });
 
-    expect(result.verdicts.map((verdict) => verdict.status)).toEqual(['verified', 'rejected', 'unverified']);
-    expect(result.verdicts[2]?.checks[0]?.detail).toContain('no verifier');
+    // The encoded field is not identity-decodable, but the documented +0x33
+    // transform is now a first-class verifier, so the correct hypothesis passes.
+    expect(result.verdicts.map((verdict) => verdict.status)).toEqual(['verified', 'rejected', 'verified']);
+    expect(result.verdicts[2]?.checks[0]).toMatchObject({ matched: 5, total: 5 });
   });
 
   it('drafts a Kaitai layout that keeps the encoded field as a gap', async () => {
