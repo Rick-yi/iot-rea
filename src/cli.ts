@@ -235,6 +235,13 @@ async function main(): Promise<number> {
       if (json) printJson(ksyInfo === undefined ? result : { ...result, ksy: ksyInfo });
       else {
         console.log(`samples ${result.sampleCount}, aligned length ${result.differential.alignedLength}`);
+        const alignment = result.differential.alignment;
+        if (alignment !== undefined) {
+          console.log(
+            `alignment payload @0x${alignment.payloadStart.toString(16)} (${alignment.payloadLength} bytes; ` +
+              `length field @0x${alignment.fieldOffset.toString(16)})`,
+          );
+        }
         for (const region of result.differential.regions) {
           console.log(`variable 0x${region.offset.toString(16)}..0x${region.end.toString(16)} (${region.width} bytes)`);
         }

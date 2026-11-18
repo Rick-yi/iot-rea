@@ -13,7 +13,7 @@ import type { ChecksumCandidate } from '../domain/checksum.js';
 import { checksumCandidates } from '../domain/checksum.js';
 import type { DerivedField } from '../domain/derived.js';
 import { detectDerivedFields } from '../domain/derived.js';
-import type { DiffReport, Observation } from '../domain/diff.js';
+import type { AlignmentInfo, DiffReport, Observation } from '../domain/diff.js';
 import { diffObservations } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
 import { inferFields } from '../domain/inference.js';
@@ -86,6 +86,43 @@ export async function loadObservations(pathname: string): Promise<LoadedObservat
   return { observations, digest, size };
 }
 
+/** Use a detected length field to justify a common payload window. */
+export function deriveAlignment(observations: Observation[], derived: DerivedField[]): AlignmentInfo | null {
+  const field =
+    derived.find((candidate) => candidate.relation === 'remaining-length' && candidate.confidence >= 1) ??
+    derived.find((candidate) => candidate.relation === 'frame-length' && candidate.confidence >= 1);
+  if (field === undefined) return null;
+
+  const payloadStart = field.offset + field.width;
+  let payloadLength = Number.POSITIVE_INFINITY;
+
+  for (const observation of observations) {
+    const value = readFieldValue(observation.bytes, field);
+    if (value === null) return null;
+    const length = field.relation === 'remaining-length' ? value : value - payloadStart;
+    if (length < 1) return null;
+    if (observation.bytes.length < payloadStart + length) return null;
+    payloadLength = Math.min(payloadLength, length);
+  }
+
+  if (!Number.isFinite(payloadLength)) return null;
+  return {
+    kind: 'length-field',
+    fieldOffset: field.offset,
+    fieldWidth: field.width,
+    payloadStart,
+    payloadLength,
+  };
+}
+
+function readFieldValue(bytes: Buffer, field: DerivedField): number | null {
+  if (field.offset + field.width > bytes.length) return null;
+  if (field.type === 'u8') return bytes[field.offset] ?? null;
+  return field.endian === 'le'
+    ? bytes.readUInt16LE(field.offset)
+    : bytes.readUInt16BE(field.offset);
+}
+
 export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
   const parsed = diffFramesInputSchema.parse(input);
   const { observations, digest, size } = await loadObservations(parsed.path);
@@ -102,9 +139,10 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     }
   }
 
-  const differential = diffObservations(observations, { excludeOffsets: masked });
-  const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 }, { excludeOffsets: masked });
   const derived = detectDerivedFields(observations, { excludeOffsets: masked });
+  const alignment = deriveAlignment(observations, derived);
+  const differential = diffObservations(observations, { excludeOffsets: masked, alignment: alignment ?? undefined });
+  const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 }, { excludeOffsets: masked });
 
   const unknowns = [
     ...differential.unknowns,

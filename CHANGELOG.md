@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.11.0] - 2026-11-18
+
+### Added
+
+- Length-field alignment: when a `frame-length` / `remaining-length` field is
+  detected, varying-length frames are compared over their common payload
+  window instead of dropping every frame shorter than the dominant length.
+- Alignment metadata is reported in diffs and evidence packs.
+
 ## [0.10.0] - 2026-11-18
 
 ### Added

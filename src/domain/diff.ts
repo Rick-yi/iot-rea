@@ -41,13 +41,31 @@ export interface DiffReport {
   excludedFrameIds: string[];
   /** Offsets excluded from variability analysis, e.g. detected checksums. */
   maskedOffsets?: number[];
+  /** Present when a detected length field supplied the alignment window. */
+  alignment?: AlignmentInfo;
 }
 
 const VARIABLE_THRESHOLD = 0.1;
 
+export interface AlignmentInfo {
+  kind: 'length-field';
+  /** Offset/width of the field that explains variable frame lengths. */
+  fieldOffset: number;
+  fieldWidth: number;
+  /** First payload byte after the length field. */
+  payloadStart: number;
+  /** Shortest payload length across the supplied samples. */
+  payloadLength: number;
+}
+
 export interface DiffOptions {
   /** Byte positions known to be derived (checksums); they are not treated as fields. */
   excludeOffsets?: ReadonlySet<number>;
+  /**
+   * Use a payload window justified by a detected length field instead of the
+   * dominant frame length.
+   */
+  alignment?: AlignmentInfo;
 }
 
 export function diffObservations(observations: Observation[], options: DiffOptions = {}): DiffReport {
@@ -64,11 +82,20 @@ export function diffObservations(observations: Observation[], options: DiffOptio
   }
 
   const lengths = observations.map((obs) => obs.bytes.length);
-  // A single truncated sample must not silently shorten every other frame: the
-  // dominant length is the alignment anchor, outliers are excluded and named.
-  const alignedLength = dominantLength(lengths);
+  // Without a length field, a single truncated sample must not silently shorten
+  // every other frame: the dominant length is the anchor. With one, the length
+  // variation is explained, so the common payload window is legitimate.
+  const alignedLength =
+    options.alignment === undefined
+      ? dominantLength(lengths)
+      : options.alignment.payloadStart + options.alignment.payloadLength;
   const unknowns: string[] = [];
-  if (unique(lengths).length > 1) {
+  if (options.alignment !== undefined) {
+    unknowns.push(
+      `length field at 0x${options.alignment.fieldOffset.toString(16)} explains varying lengths; ` +
+        `compared the ${options.alignment.payloadLength}-byte common payload after 0x${options.alignment.payloadStart.toString(16)}`,
+    );
+  } else if (unique(lengths).length > 1) {
     unknowns.push(
       `frame lengths differ (${unique(lengths).join(', ')}); only the ${alignedLength}-byte prefix was compared`,
     );
@@ -146,6 +173,7 @@ export function diffObservations(observations: Observation[], options: DiffOptio
     unknowns,
     excludedFrameIds,
     maskedOffsets: excluded === undefined ? undefined : [...excluded].filter((offset) => offset < alignedLength),
+    alignment: options.alignment,
   };
 }
 
