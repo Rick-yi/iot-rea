@@ -190,9 +190,14 @@ export function checkByteTransform(rawArgs: unknown, observations: Observation[]
   if (TYPE_WIDTH[args.type] !== args.width) {
     return unsupported('byte_transform', `type ${args.type} needs width ${TYPE_WIDTH[args.type]}, got ${args.width}`);
   }
-  const kind = args.transform.kind;
-  if ((kind === 'xor' || kind === 'add') && args.transform.operand === undefined) {
-    return unsupported('byte_transform', `transform "${kind}" requires an operand`);
+  const steps = args.transforms ?? (args.transform === undefined ? [] : [args.transform]);
+  if (steps.length === 0) {
+    return unsupported('byte_transform', 'provide transform or transforms');
+  }
+  for (const step of steps) {
+    if ((step.kind === 'xor' || step.kind === 'add') && step.operand === undefined) {
+      return unsupported('byte_transform', `transform "${step.kind}" requires an operand`);
+    }
   }
 
   let matched = 0;
@@ -210,7 +215,9 @@ export function checkByteTransform(rawArgs: unknown, observations: Observation[]
     }
 
     const raw = Buffer.from(observation.bytes.subarray(args.offset, args.offset + args.width));
-    const decoded = decodeNumber(args.type, args.endian ?? null, transformBytes(raw, args.transform), 0, args.width);
+    let transformed: Buffer = raw;
+    for (const step of steps) transformed = transformBytes(transformed, step);
+    const decoded = decodeNumber(args.type, args.endian ?? null, transformed, 0, args.width);
     if (decoded === null) {
       counterexamples.push(observation.frameId);
       continue;
@@ -238,6 +245,7 @@ function transformBytes(
   bytes: Buffer,
   transform: { kind: 'xor' | 'not' | 'add' | 'bit-reverse' | 'nibble-swap'; operand?: number },
 ): Buffer {
+  // Chains call this once per step; the output of one step feeds the next.
   return Buffer.from(
     bytes.map((byte) => {
       switch (transform.kind) {

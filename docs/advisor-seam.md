@@ -73,7 +73,7 @@ node dist/cli.js verify-hypotheses observations.json --hypotheses hypotheses.jso
 | `type_fit` | `offset`、`width`、`type`、`endian`、`variable`、可选 `factor` | 解码值与标签逐样本比对；支持 `expected = raw / factor` |
 | `checksum_coverage` | `algorithm`、`position`、`width`、`endian`、`coveredFrom`、`coveredTo` | 按覆盖区间重算校验并与存储值比较 |
 | `bcd_fit` | `offset`、`width`、`variable`、可选 `byteOffset`、`reverseBytes`、`factor` | 打包 BCD 解码；`byteOffset: 0x33` 表示线上字节曾被 +0x33；支持字节倒序与小数缩放；非法半字节或任一不匹配即拒绝 |
-| `byte_transform` | `offset`、`width`、`variable`、`type`、`endian`、`transform{kind, operand}`、可选 `factor` | 先做一次逐字节变换（`xor` / `not` / `add` / `bit-reverse` / `nibble-swap`），再按数值类型解码；`add` 表示线上已加上 operand，验证时减回；v1 不支持变换链 |
+| `byte_transform` | `offset`、`width`、`variable`、`type`、`endian`、`transform{kind, operand}` 或 `transforms[]`、可选 `factor` | 逐字节变换（`xor` / `not` / `add` / `bit-reverse` / `nibble-swap`）后按数值类型解码；`add` 表示线上已加上 operand，验证时减回；`transforms` 按数组顺序依次应用，用于链式编码 |
 
 ## 扩展新 verifier
 

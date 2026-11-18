@@ -60,27 +60,35 @@ export type BcdFitArgs = z.infer<typeof bcdFitArgsSchema>;
 
 export const numericFieldTypeSchema = z.enum(['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'f32']);
 
+export const byteTransformStepSchema = z.object({
+  kind: z.enum(['xor', 'not', 'add', 'bit-reverse', 'nibble-swap']),
+  /**
+   * Required for xor and add; ignored by the others. `add` means the wire
+   * bytes had the operand added, so verification subtracts it back.
+   */
+  operand: z.number().int().min(0).max(255).optional(),
+});
+export type ByteTransformStep = z.infer<typeof byteTransformStepSchema>;
+
 export const byteTransformArgsSchema = z.object({
   offset: z.number().int().nonnegative(),
   width: z.number().int().min(1).max(8),
   variable: z.string().min(1),
   type: numericFieldTypeSchema,
   endian: z.enum(['be', 'le']).nullable().optional(),
+  /** Single transform, kept for existing callers. */
+  transform: byteTransformStepSchema.optional(),
   /**
-   * One byte-wise transform applied before numeric decoding.
-   * Chains are not expressible in v1; the raw bytes are always the input.
+   * Transform chain, applied in array order to the raw bytes. Use this instead
+   * of `transform` when the encoder composed several steps.
    */
-  transform: z.object({
-    kind: z.enum(['xor', 'not', 'add', 'bit-reverse', 'nibble-swap']),
-    /**
-     * Required for xor and add; ignored by the others. `add` means the wire
-     * bytes had the operand added, so verification subtracts it back.
-     */
-    operand: z.number().int().min(0).max(255).optional(),
-  }),
+  transforms: z.array(byteTransformStepSchema).min(1).max(8).optional(),
   /** Optional scale: expected = decoded / factor. */
   factor: z.number().positive().optional(),
-});
+}).refine(
+  (args) => args.transform !== undefined || args.transforms !== undefined,
+  { message: 'provide transform or transforms' },
+);
 export type ByteTransformArgs = z.infer<typeof byteTransformArgsSchema>;
 
 export const checksumCoverageArgsSchema = z.object({
