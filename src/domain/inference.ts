@@ -113,6 +113,30 @@ function toNumber(value: number | string | boolean | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Tie-break for equally scoring hypotheses.
+ *
+ * Width first (a two-byte field beats its own low byte), then signedness:
+ * unsigned wins because a non-negative label fits both `u16` and `i16`, and
+ * choosing `i16` would silently make half the range negative.
+ */
+function isBetterCandidate(
+  type: FieldType,
+  width: number,
+  confidence: number,
+  best: FieldCandidate,
+): boolean {
+  if (confidence !== best.confidence) return confidence > best.confidence;
+  if (width !== best.width) return width > best.width;
+  return typeRank(type) > typeRank(best.type);
+}
+
+function typeRank(type: FieldType): number {
+  if (type === 'u8' || type === 'u16' || type === 'u32') return 3;
+  if (type === 'f32') return 2;
+  return 1;
+}
+
 export function matchesDecodedValue(decoded: number, expected: number, type: FieldType): boolean {
   if (type === 'f32') {
     const scale = Math.max(1, Math.abs(expected));
@@ -189,8 +213,7 @@ function bestNumericCandidate(
         }
         const confidence = matched / total;
         if (confidence < CONFIDENCE_FLOOR) continue;
-        if (best !== null && confidence < best.confidence) continue;
-        if (best !== null && confidence === best.confidence && spec.width < best.width) continue;
+        if (best !== null && !isBetterCandidate(spec.type, spec.width, confidence, best)) continue;
         best = {
           offset,
           width: spec.width,
