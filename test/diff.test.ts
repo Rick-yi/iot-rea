@@ -42,6 +42,19 @@ describe('inferFields', () => {
     expect(field?.confidence).toBe(1);
   });
 
+  it('prefers unsigned over signed when both types fit the same bytes', () => {
+    const observations = [10, 20, 300].map((value, index) => {
+      const bytes = Buffer.alloc(2);
+      bytes.writeUInt16BE(value, 0);
+      return { frameId: `u${index + 1}`, vars: { register: value }, bytes };
+    });
+
+    const field = inferFields(observations).fields.find((candidate) => candidate.variable === 'register');
+
+    // Without a tie-break, i16 wins merely by appearing later in the scan.
+    expect(field).toMatchObject({ type: 'u16', endian: 'be', confidence: 1 });
+  });
+
   it('keeps label matching, but the differential reports stable bytes', () => {
     const observations = sensorObservations([20, 20, 20]);
     const report = inferFields(observations);

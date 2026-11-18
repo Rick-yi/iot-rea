@@ -6,7 +6,7 @@
  * `unverified`, never a silent pass.
  */
 import type { CheckResult, Hypothesis, HypothesisVerdict } from '../contracts/hypotheses.js';
-import { checksumCoverageArgsSchema, typeFitArgsSchema } from '../contracts/hypotheses.js';
+import { bcdFitArgsSchema, checksumCoverageArgsSchema, typeFitArgsSchema } from '../contracts/hypotheses.js';
 import type { ChecksumAlgorithm } from './checksum.js';
 import { computeChecksum } from './checksum.js';
 import type { Observation } from './diff.js';
@@ -32,6 +32,12 @@ export const VERIFIERS: VerifierInfo[] = [
       'Recompute a checksum algorithm over a declared coverage range and compare it with the stored bytes at the declared position.',
     argsSchema: checksumCoverageArgsSchema,
   },
+  {
+    name: 'bcd_fit',
+    description:
+      'Decode packed BCD (optional byte offset removal, byte reversal and scale) and compare every sample with its label. Invalid nibbles or any mismatch reject the claim.',
+    argsSchema: bcdFitArgsSchema,
+  },
 ];
 
 export function runCheck(check: { verifier: string; args: Record<string, unknown> }, observations: Observation[]): CheckResult {
@@ -40,6 +46,8 @@ export function runCheck(check: { verifier: string; args: Record<string, unknown
       return checkTypeFit(check.args, observations);
     case 'checksum_coverage':
       return checkChecksumCoverage(check.args, observations);
+    case 'bcd_fit':
+      return checkBcdFit(check.args, observations);
     default:
       return {
         verifier: check.verifier,
@@ -147,6 +155,72 @@ export function checkChecksumCoverage(rawArgs: unknown, observations: Observatio
     counterexamples,
     detail: matched === total ? undefined : `${total - matched} sample(s) contradicted the coverage claim`,
   };
+}
+
+export function checkBcdFit(rawArgs: unknown, observations: Observation[]): CheckResult {
+  const parsed = bcdFitArgsSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return unsupported('bcd_fit', `invalid bcd_fit args: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
+  }
+  const args = parsed.data;
+  let matched = 0;
+  let total = 0;
+  const counterexamples: string[] = [];
+
+  for (const observation of observations) {
+    const expected = expectedNumber(observation.vars[args.variable]);
+    if (expected === null) continue;
+    total += 1;
+
+    if (args.offset + args.width > observation.bytes.length) {
+      counterexamples.push(observation.frameId);
+      continue;
+    }
+
+    let bytes = Buffer.from(observation.bytes.subarray(args.offset, args.offset + args.width));
+    if (args.reverseBytes === true) bytes = Buffer.from([...bytes].reverse());
+    if (args.byteOffset !== undefined) {
+      bytes = Buffer.from(bytes.map((byte) => (byte - (args.byteOffset ?? 0)) & 0xff));
+    }
+
+    const digits = decodeBcd(bytes);
+    if (digits === null) {
+      counterexamples.push(observation.frameId);
+      continue;
+    }
+    const value = args.factor === undefined ? digits : digits / args.factor;
+    if (matchesApprox(value, expected)) matched += 1;
+    else counterexamples.push(observation.frameId);
+  }
+
+  if (total === 0) {
+    return unsupported('bcd_fit', `no sample carries variable "${args.variable}"`);
+  }
+
+  return {
+    verifier: 'bcd_fit',
+    status: matched === total ? 'verified' : 'rejected',
+    matched,
+    total,
+    counterexamples,
+    detail: matched === total ? undefined : `${total - matched} sample(s) contradicted the BCD claim`,
+  };
+}
+
+/** Packed BCD, high nibble first; any nibble above 9 is invalid. */
+function decodeBcd(bytes: Buffer): number | null {
+  let value = 0;
+  for (const byte of bytes) {
+    const hi = byte >> 4;
+    const lo = byte & 0x0f;
+    if (hi > 9 || lo > 9) return null;
+    value = value * 100 + hi * 10 + lo;
+  }
+  return value;
+}
+
+function matchesApprox(decoded: number, expected: number): boolean {
+  return Math.abs(decoded - expected) <= Math.max(1, Math.abs(expected)) * 1e-4;
 }
 
 function expectedNumber(value: number | string | boolean | undefined): number | null {

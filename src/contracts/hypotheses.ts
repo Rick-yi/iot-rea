@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 
-export const verificationKindSchema = z.enum(['type_fit', 'checksum_coverage']);
+export const verificationKindSchema = z.enum(['type_fit', 'checksum_coverage', 'bcd_fit']);
 export type VerificationKind = z.infer<typeof verificationKindSchema>;
 
 export const hypothesisKindSchema = z.enum([
@@ -40,6 +40,23 @@ export const typeFitArgsSchema = z.object({
   factor: z.number().positive().optional(),
 });
 export type TypeFitArgs = z.infer<typeof typeFitArgsSchema>;
+
+export const bcdFitArgsSchema = z.object({
+  offset: z.number().int().nonnegative(),
+  // 6 bytes = 12 decimal digits, still exact in a JS number.
+  width: z.number().int().min(1).max(6),
+  variable: z.string().min(1),
+  /**
+   * Byte-wise offset removed before BCD decoding. `byteOffset: 0x33` means
+   * the wire bytes were produced by adding 0x33 to each decoded byte.
+   */
+  byteOffset: z.number().int().min(-255).max(255).optional(),
+  /** Reverse byte order after removing byteOffset, for little-endian digit order. */
+  reverseBytes: z.boolean().optional(),
+  /** Optional scale: expected = decodedDigits / factor, e.g. factor 100 for 12.34. */
+  factor: z.number().positive().optional(),
+});
+export type BcdFitArgs = z.infer<typeof bcdFitArgsSchema>;
 
 export const checksumCoverageArgsSchema = z.object({
   algorithm: z.enum(['sum8', 'xor8', 'sum16', 'crc16-ccitt-false', 'crc16-modbus', 'crc32']),
