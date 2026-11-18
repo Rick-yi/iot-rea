@@ -39,8 +39,8 @@ jobs:
         if: failure()
         run: |
           if [ -f /tmp/iot-rea-test.log ]; then
-            tail -n 25 /tmp/iot-rea-test.log | while IFS= read -r line; do
-              echo "::error::${line//$''/}"
+            tail -n 25 /tmp/iot-rea-test.log | tr -d '\r' | while IFS= read -r line; do
+              echo "::error::$line"
             done
           fi
       - run: npm run build
