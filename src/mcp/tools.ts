@@ -254,7 +254,7 @@ export const MCP_TOOLS: McpTool[] = [
       hypotheses: z
         .array(hypothesisSchema)
         .min(1)
-        .describe('Claims with deterministic checks, e.g. type_fit, checksum_coverage or bcd_fit'),
+        .describe('Claims with deterministic checks, e.g. type_fit, checksum_coverage, bcd_fit or byte_transform'),
     },
     async (input) => verifyHypotheses({ path: input.path, hypotheses: input.hypotheses }),
   ),
