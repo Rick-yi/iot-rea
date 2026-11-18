@@ -3,6 +3,7 @@
  * CLI adapter. It translates arguments and formats output; it contains no
  * analysis logic, so a future MCP adapter can bind the same workflows.
  */
+import { buildObservations } from './app/buildObservations.js';
 import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
 import { inspectCapture } from './app/inspectCapture.js';
@@ -115,6 +116,38 @@ async function main(): Promise<number> {
           console.log(`#${row.frameNumber} ${JSON.stringify(row.fields)}`);
         }
         printLimitations(result.evidence.limitations);
+      }
+      return 0;
+    }
+
+    case 'build-observations': {
+      requireTarget(target, 'build-observations');
+      const result = await buildObservations({
+        path: target,
+        payloadField: flag(args, 'payload-field'),
+        labelsPath: flag(args, 'labels'),
+        labelsFormat: flag(args, 'labels-format') as 'auto' | 'csv' | 'json' | undefined,
+        displayFilter: flag(args, 'filter'),
+        decodeAs: list(flag(args, 'decode-as')),
+        packetLimit: number(flag(args, 'packet-limit')),
+      });
+
+      const outPath = flag(args, 'out');
+      if (outPath === undefined || outPath === '-') {
+        printJson(result);
+        return 0;
+      }
+
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+      if (json) {
+        printJson({ ...result, out: outPath });
+      } else {
+        console.log(
+          `wrote ${outPath}: ${result.observations.length} observation(s), ` +
+            `${result.stats.unlabelled} unlabelled, ${result.stats.skippedNoPayload} without payload`,
+        );
+        printLimitations(result.unknowns);
       }
       return 0;
     }
@@ -236,6 +269,10 @@ usage:
   iot-rea inspect-capture <capture> [--fields a,b] [--filter expr]
                         [--decode-as rule] [--packet-limit n]
                         [--offset n] [--limit n|all] [--two-pass] [--json]
+  iot-rea build-observations <capture> [--payload-field data.data]
+                        [--labels <csv|json>] [--labels-format auto|csv|json]
+                        [--filter expr] [--decode-as rule] [--packet-limit n]
+                        [--out <obs.json>|--out -] [--json]
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
   iot-rea diff-frames <observations.json> [--min-samples n] [--json]
   iot-rea decode-signals <recording> --decoders uart:rx=RX:baudrate=9600

@@ -32,6 +32,29 @@ node dist/cli.js read-serial serial.log
 
 所有命令都支持 `--json` 输出完整结果与证据。
 
+## 从抓包生成差分样本
+
+手工拼 `observations.json` 容易出错，`build-observations` 把抓包与标签直接接起来：
+
+```bash
+node dist/cli.js build-observations device.pcapng \
+  --payload-field data.data \
+  --filter 'udp.port == 9999' \
+  --labels labels.csv \
+  --out observations.json
+```
+
+```csv
+frame,temperature
+3,21.5
+5,22.25
+6,23.0
+```
+
+标签第一列必须是 `frame` / `frameId` / `frame_number`，其余列是变量；数值与 `true`/`false` 自动转类型，其他保持字符串。也接受 JSON 映射（`{"3":{"temperature":21.5}}`）。输出对象包含 `observations`、`stats`、`unknowns` 与 `evidence`，可以直接作为 `diff-frames` 的输入；没有 `--out` 时输出到 stdout。
+
+没有 payload 的帧会被跳过并计入 `stats.skippedNoPayload`，未打标签的样本只参与对齐、不参与字段推断，两者都会写进 `unknowns`。
+
 ## 差分输入格式
 
 `diff-frames` 的输入是一组**只改变一个业务值**的样本：
