@@ -244,6 +244,13 @@ async function main(): Promise<number> {
             `field ${field.variable}: ${field.type}${endian} @0x${field.offset.toString(16)} width ${field.width} confidence ${field.confidence.toFixed(2)}`,
           );
         }
+        for (const derived of result.derived) {
+          const endian = derived.endian === null ? '' : ` ${derived.endian}`;
+          console.log(
+            `derived ${derived.relation}: ${derived.type}${endian} @0x${derived.offset.toString(16)} ` +
+              `(${derived.matched}/${derived.total} matched)`,
+          );
+        }
         for (const checksum of result.checksums) {
           console.log(
             `checksum ${checksum.algorithm} @0x${checksum.position.toString(16)} ${checksum.endian} confidence ${checksum.confidence.toFixed(2)}`,

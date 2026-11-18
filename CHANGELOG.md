@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.9.0] - 2026-11-18
+
+### Added
+
+- Checksum-aware masking: bytes identified as a checksum are excluded from
+  variability analysis and field inference, and reported via `maskedOffsets`.
+- Derived length-field detection (`frame-length` / `remaining-length`) with
+  Kaitai placement; constant frame lengths are refused as evidence.
+- Evidence packs include derived fields.
+
+### Changed
+
+- `diff-frames` reports derived fields separately from payload fields.
+
 ## [0.8.0] - 2026-11-18
 
 ### Added
