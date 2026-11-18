@@ -53,6 +53,26 @@ node dist/cli.js read-serial serial.log
 | 推断 | 校验候选（算法、位置、覆盖范围、反例帧） |
 | 未知 | 未对齐的尾部、未达阈值的变量、无法验证的语义 |
 
+## 导出 Kaitai 草稿
+
+差分结论可以直接落成 `.ksy`：
+
+```bash
+node dist/cli.js diff-frames observations.json --ksy sensor.ksy --id sensor
+```
+
+导出的布局是严格的顺序结构：没有推断结果的字节变成显式 `reserved_*`，每个字段的 `doc` 记录偏移、置信度和变量，校验字段标注算法与覆盖范围。Kaitai 本身不校验校验和，需要在应用代码里验证；重叠的弱假设会被丢弃并写进注释。`--ksy -` 直接输出到 stdout。
+
+```yaml
+seq:
+  - id: reserved_0
+    size: 4
+    doc: "4 byte(s) at 0x0 were not placed by any hypothesis (gap #0)"
+  - id: temperature
+    type: f4le
+    doc: "offset 0x4, width 4, confidence 1.00; variable temperature"
+```
+
 ## 支持的输入
 
 | 输入 | 提供者 | 说明 |
