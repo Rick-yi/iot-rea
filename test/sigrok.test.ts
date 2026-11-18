@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { decodeSignalRecording } from '../src/providers/sigrok.js';
+import { buildSigrokArgs, decodeSignalRecording } from '../src/providers/sigrok.js';
 import { buildUartVcd } from './fixtures/uartVcd.js';
 
 const hasSigrok = (() => {
@@ -19,6 +19,18 @@ const hasSigrok = (() => {
     : ['sigrok-cli'];
   return entries.some((entry) => path.isAbsolute(entry) && names.some((name) => existsSync(path.join(entry, name))));
 })();
+
+describe('buildSigrokArgs', () => {
+  it('uses the option names sigrok-cli actually accepts', () => {
+    // Regression: --decoders / --annotations are not sigrok-cli options.
+    expect(buildSigrokArgs({ path: 'ignored', decoders: ['uart:rx=RX:baudrate=9600'], annotations: ['uart=rx-data'], inputFormat: 'vcd' }, 'private.vcd')).toEqual([
+      '-i', 'private.vcd',
+      '--input-format', 'vcd',
+      '--protocol-decoders', 'uart:rx=RX:baudrate=9600',
+      '--protocol-decoder-annotations', 'uart=rx-data',
+    ]);
+  });
+});
 
 describe.skipIf(!hasSigrok)('decode-signals with sigrok-cli', () => {
   it('decodes a generated UART recording', async () => {

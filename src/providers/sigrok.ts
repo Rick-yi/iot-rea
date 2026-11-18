@@ -39,9 +39,11 @@ export function buildSigrokArgs(request: SigrokRequest, recordingPath: string): 
   if (request.inputFormat !== undefined && request.inputFormat !== '') {
     args.push('--input-format', request.inputFormat);
   }
-  if (request.decoders.length > 0) args.push('--decoders', request.decoders.join(','));
+  // sigrok-cli names these --protocol-decoders / --protocol-decoder-annotations;
+  // --decoders does not exist and exits with "Unknown option".
+  if (request.decoders.length > 0) args.push('--protocol-decoders', request.decoders.join(','));
   if (request.annotations !== undefined && request.annotations.length > 0) {
-    args.push('--annotations', request.annotations.join(','));
+    args.push('--protocol-decoder-annotations', request.annotations.join(','));
   }
   return args;
 }
