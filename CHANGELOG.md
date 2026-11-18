@@ -1,0 +1,68 @@
+# Changelog
+
+All notable changes to this project are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+semantic versioning.
+
+## [0.7.0] - 2026-11-18
+
+### Added
+
+- `infer-transitions` CLI and `infer_transitions` MCP tool: observed transition
+  graph from frames, with Mermaid output and explicit unknowns.
+- Evidence packs (`evidence-pack`) and deterministic hypothesis verification
+  (`verify-hypotheses`), including `bcd_fit` and `byte_transform` verifiers.
+
+### Changed
+
+- MCP server exposes 12 tools; unknown verifiers stay `unverified` instead of
+  passing.
+
+## [0.6.0] - 2026-11-18
+
+### Added
+
+- `byte_transform` verifier: xor, not, add, bit-reverse and nibble-swap.
+
+## [0.5.0] - 2026-11-18
+
+### Added
+
+- `bcd_fit` verifier: packed BCD with byte offset, byte reversal and scale.
+
+### Fixed
+
+- Inference prefers unsigned types when `uN` and `iN` both fit, instead of
+  letting scan order decide (`u16` no longer reported as `i16`).
+
+## [0.4.0] - 2026-11-18
+
+### Added
+
+- Advisor seam: external proposers consume an evidence pack and submit
+  hypotheses; the core remains model-free.
+
+## [0.3.0] - 2026-11-18
+
+### Added
+
+- MCP tools `build_observations`, `ble_frames` and `export_ksy`.
+- Per-tool `readOnlyHint`: `inspect_firmware` is marked writable because
+  `extract_to` writes files.
+
+## [0.2.0] - 2026-11-18
+
+### Added
+
+- MCP stdio server with read-only analysis tools and client documentation.
+
+## [0.1.0] - 2026-11-18
+
+### Added
+
+- Evidence model (observation / derivation / inference / unknown).
+- Capture adapters: TShark, sigrok-cli and recorded serial logs.
+- Firmware container parsers: UF2, Intel HEX, S-record, DfuSe.
+- Differential field inference, checksum candidates and Kaitai draft export.
+- BLE ATT channel/direction normalization.
+- CLI, tests, CI, protocol specs and ADRs.

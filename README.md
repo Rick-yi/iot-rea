@@ -1,5 +1,9 @@
 # iot-rea
 
+[![ci](https://github.com/Rick-yi/iot-rea/actions/workflows/ci.yml/badge.svg)](https://github.com/Rick-yi/iot-rea/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen.svg)](package.json)
+
 面向物联网设备的**证据优先**协议逆向框架。它读取已经录制的数据——抓包、串口日志、逻辑分析仪录制、固件容器——把结论拆成"观察 / 推导 / 推断 / 未知"，并给出可复核的证据。
 
 结构借鉴了 [REA](https://github.com/morluto/rea) 的骨架（能力与提供者分离、自带外部工具、资源边界失败即停），补齐 REA 明确不做的事：采集归一化、私有字段差分推断、固件容器静态解析。
