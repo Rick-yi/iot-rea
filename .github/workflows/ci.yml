@@ -27,11 +27,19 @@ jobs:
         run: sigrok-cli --version
       - name: sigrok uart decoder
         run: sigrok-cli -L | grep -q uart
+      - name: Fetch ATT corpus
+        run: |
+          for attempt in 1 2 3; do
+            curl -fsSL --retry 2               https://raw.githubusercontent.com/wireshark/wireshark/master/test/captures/btatt_coverage.pcap.gz               -o /tmp/btatt_coverage.pcap.gz && gunzip -f /tmp/btatt_coverage.pcap.gz && break
+            sleep 3
+          done
+          test -s /tmp/btatt_coverage.pcap
       - run: npm run typecheck
       - run: npm test
         env:
           # Integration tests are not allowed to skip silently in CI.
           IOT_REA_REQUIRE_TOOLS: "1"
+          IOT_REA_BLE_CORPUS: /tmp/btatt_coverage.pcap
       - run: npm run build
       - name: CLI smoke test
         run: |
