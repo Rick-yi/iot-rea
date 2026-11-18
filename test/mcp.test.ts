@@ -41,6 +41,7 @@ describe('tool definitions', () => {
       'ble_frames',
       'evidence_pack',
       'verify_hypotheses',
+      'infer_transitions',
       'export_ksy',
     ]);
     expect(new Set(names).size).toBe(names.length);
@@ -179,5 +180,32 @@ describe('MCP protocol', () => {
     };
     expect(verdicts.summary?.verified).toBe(1);
     expect(verdicts.verdicts?.[0]?.status).toBe('verified');
+  });
+
+  it('serves transition graphs over MCP', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'iot-rea-mcp-transitions-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const file = path.join(dir, 'frames.json');
+    await writeFile(
+      file,
+      JSON.stringify([
+        { frameId: 't', direction: 'tx', channel: 'uart', hex: '0103000a', timestampMs: 1 },
+        { frameId: 'r', direction: 'rx', channel: 'uart', hex: '0103020014', timestampMs: 2 },
+      ]),
+      'utf8',
+    );
+
+    const client = await connect();
+    const result = await client.callTool({ name: 'infer_transitions', arguments: { path: file } });
+
+    expect(result.isError).toBeUndefined();
+    const body = JSON.parse((result.content as Array<{ text: string }>)[0]?.text ?? '{}') as {
+      nodes?: unknown[];
+      mermaid?: string;
+      stats?: { edges?: number };
+    };
+    expect(body.nodes).toHaveLength(2);
+    expect(body.stats?.edges).toBe(1);
+    expect(body.mermaid).toContain('-->|1|');
   });
 });

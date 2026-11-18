@@ -23,6 +23,7 @@ export * from './app/exportKsy.js';
 export * from './domain/labels.js';
 export * from './domain/ble.js';
 export * from './providers/ble.js';
+export * from './app/inferTransitions.js';
 export * from './app/inspectFirmware.js';
 export * from './app/doctor.js';
 export * from './providers/serial.js';

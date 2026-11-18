@@ -12,6 +12,7 @@ import { buildObservations } from '../app/buildObservations.js';
 import { doctor } from '../app/doctor.js';
 import { diffFrames } from '../app/diffFrames.js';
 import { renderKaitai } from '../app/exportKsy.js';
+import { inferTransitions } from '../app/inferTransitions.js';
 import { verifyHypotheses } from '../app/verifyHypotheses.js';
 import { hypothesisSchema } from '../contracts/hypotheses.js';
 import { inspectCapture } from '../app/inspectCapture.js';
@@ -257,6 +258,23 @@ export const MCP_TOOLS: McpTool[] = [
         .describe('Claims with deterministic checks, e.g. type_fit, checksum_coverage, bcd_fit or byte_transform'),
     },
     async (input) => verifyHypotheses({ path: input.path, hypotheses: input.hypotheses }),
+  ),
+
+  define(
+    'infer_transitions',
+    'Infer a transition graph from frames',
+    'Count observed transitions between consecutive frames, grouped by channel and the first N signature bytes. This is a graph of observations, not a hidden-state model: prefixes collapse and single-observation edges are reported as unknowns.',
+    {
+      path: pathField.describe('JSON frames: [{frameId, direction, channel, hex}] or {"frames": [...]}'),
+      signature_bytes: z.number().int().min(1).max(16).optional().describe('Signature prefix length, default 2'),
+      channel: z.string().min(1).optional().describe('Restrict the graph to one channel'),
+    },
+    async (input) =>
+      inferTransitions({
+        path: input.path,
+        signatureBytes: input.signature_bytes,
+        channel: input.channel,
+      }),
   ),
 
   define(
