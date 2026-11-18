@@ -6,6 +6,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer } from '../src/mcp/server.js';
 import { MCP_TOOLS, toolByName } from '../src/mcp/tools.js';
+import { sensorObservations } from './helpers.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -36,12 +37,21 @@ describe('tool definitions', () => {
       'inspect_firmware',
       'decode_signals',
       'read_serial',
+      'build_observations',
+      'ble_frames',
+      'export_ksy',
     ]);
     expect(new Set(names).size).toBe(names.length);
     for (const tool of MCP_TOOLS) {
       expect(tool.inputSchema).toBeDefined();
       expect(tool.description.length).toBeGreaterThan(20);
     }
+  });
+
+  it('marks only filesystem-writing tools as non read-only', () => {
+    expect(toolByName('export_ksy')?.readOnly).toBe(true);
+    expect(toolByName('inspect_capture')?.readOnly).toBe(true);
+    expect(toolByName('inspect_firmware')?.readOnly).toBe(false);
   });
 
   it('validates input before calling the handler', () => {
@@ -62,6 +72,8 @@ describe('MCP protocol', () => {
     const client = await connect();
     const listed = await client.listTools();
     expect(listed.tools.map((tool) => tool.name)).toContain('inspect_capture');
+    expect(listed.tools.find((tool) => tool.name === 'inspect_firmware')?.annotations?.readOnlyHint).toBe(false);
+    expect(listed.tools.find((tool) => tool.name === 'export_ksy')?.annotations?.readOnlyHint).toBe(true);
 
     const result = await client.callTool({ name: 'doctor', arguments: {} });
     expect(result.isError).toBeUndefined();
@@ -87,5 +99,31 @@ describe('MCP protocol', () => {
     expect(body.frames).toHaveLength(2);
     expect(body.frames?.[0]?.direction).toBe('tx');
     expect(body.skippedLines).toBe(0);
+  });
+
+  it('drafts a Kaitai schema as text without writing files', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'iot-rea-mcp-ksy-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const file = path.join(dir, 'obs.json');
+    const payload = sensorObservations([21.5, 22.25, 23]).map((obs) => ({
+      frameId: obs.frameId,
+      vars: obs.vars,
+      hex: obs.bytes.toString('hex'),
+    }));
+    await writeFile(file, JSON.stringify(payload), 'utf8');
+
+    const client = await connect();
+    const result = await client.callTool({ name: 'export_ksy', arguments: { path: file, id: 'sensor' } });
+
+    expect(result.isError).toBeUndefined();
+    const body = JSON.parse((result.content as Array<{ text: string }>)[0]?.text ?? '{}') as {
+      id?: string;
+      text?: string;
+      unknowns?: string[];
+    };
+    expect(body.id).toBe('sensor');
+    expect(body.text).toContain('type: f4le');
+    expect(body.text).toContain('checksum_sum8');
+    expect((body.unknowns ?? []).length).toBeGreaterThan(0);
   });
 });

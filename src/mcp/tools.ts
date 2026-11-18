@@ -6,8 +6,11 @@
  * definitions to the protocol.
  */
 import { z } from 'zod';
+import { bleFrames } from '../app/bleFrames.js';
+import { buildObservations } from '../app/buildObservations.js';
 import { doctor } from '../app/doctor.js';
 import { diffFrames } from '../app/diffFrames.js';
+import { renderKaitai } from '../app/exportKsy.js';
 import { inspectCapture } from '../app/inspectCapture.js';
 import { inspectFirmware } from '../app/inspectFirmware.js';
 import { IotReaError } from '../contracts/errors.js';
@@ -26,6 +29,8 @@ export interface McpTool {
   name: string;
   title: string;
   description: string;
+  /** False for tools that can write to the caller's filesystem. */
+  readOnly: boolean;
   inputSchema: z.ZodObject<z.ZodRawShape>;
   run: (input: unknown) => Promise<ToolOutput>;
 }
@@ -55,12 +60,14 @@ function define<S extends z.ZodRawShape, O extends object>(
   description: string,
   shape: S,
   handler: (input: z.infer<z.ZodObject<S>>) => Promise<O>,
+  options: { readOnly?: boolean } = {},
 ): McpTool {
   const inputSchema = z.object(shape);
   return {
     name,
     title,
     description,
+    readOnly: options.readOnly ?? true,
     inputSchema,
     run: async (input: unknown) => {
       try {
@@ -139,6 +146,7 @@ export const MCP_TOOLS: McpTool[] = [
       extract_to: z.string().min(1).optional().describe('Directory to materialize decoded regions into'),
     },
     async (input) => inspectFirmware({ path: input.path, extractTo: input.extract_to }),
+    { readOnly: false },
   ),
 
   define(
@@ -173,6 +181,74 @@ export const MCP_TOOLS: McpTool[] = [
     'Parse timestamped TX/RX hex lines or JSONL serial recordings into normalized frames. Lines that do not parse are counted as unknown, never dropped silently.',
     { path: pathField },
     async (input) => readSerialLog(input.path),
+  ),
+
+  define(
+    'build_observations',
+    'Build labelled observations from a capture',
+    'Read a recorded pcap/BLE capture through TShark, attach labels by frame number, and return diff-compatible observations. Frames without payload and samples without labels are counted and reported, never dropped silently.',
+    {
+      path: pathField,
+      payload_field: z.string().min(1).optional().describe('TShark payload field, default "data.data"'),
+      labels_path: z.string().min(1).optional().describe('CSV or JSON label file matched by frame number'),
+      labels_format: z.enum(['auto', 'csv', 'json']).optional(),
+      display_filter: z.string().optional().describe('Wireshark display filter, e.g. "udp.port == 9999"'),
+      decode_as: z.array(z.string().min(1)).max(1024).optional(),
+      packet_limit: z.number().int().positive().optional(),
+    },
+    async (input) =>
+      buildObservations({
+        path: input.path,
+        payloadField: input.payload_field,
+        labelsPath: input.labels_path,
+        labelsFormat: input.labels_format,
+        displayFilter: input.display_filter,
+        decodeAs: input.decode_as,
+        packetLimit: input.packet_limit,
+      }),
+  ),
+
+  define(
+    'ble_frames',
+    'Normalize BLE ATT frames',
+    'Map recorded ATT traffic to att:0xhhhh channels with a direction. Direction comes from HCI addresses when peer_address is supplied, otherwise from ATT opcode semantics with the central-is-host assumption stated in limitations. Optional labels produce diff-compatible observations.',
+    {
+      path: pathField,
+      peer_address: z.string().min(1).optional().describe('Device BD_ADDR, e.g. "AA:BB:CC:DD:EE:FF"'),
+      display_filter: z.string().optional(),
+      packet_limit: z.number().int().positive().optional(),
+      labels_path: z.string().min(1).optional(),
+      labels_format: z.enum(['auto', 'csv', 'json']).optional(),
+    },
+    async (input) =>
+      bleFrames({
+        path: input.path,
+        peerAddress: input.peer_address,
+        displayFilter: input.display_filter,
+        packetLimit: input.packet_limit,
+        labelsPath: input.labels_path,
+        labelsFormat: input.labels_format,
+      }),
+  ),
+
+  define(
+    'export_ksy',
+    'Draft a Kaitai Struct schema',
+    'Run differential inference on labelled observations and return a draft .ksy document as text. Bytes without a hypothesis stay explicit reserved fields; weaker overlapping hypotheses are dropped and listed. This tool does not write files.',
+    {
+      path: pathField.describe('JSON observations: [{frameId, vars, hex}] or {"observations": [...]}'),
+      id: z.string().min(1).optional().describe('Kaitai meta.id; sanitized to a safe identifier'),
+    },
+    async (input) => {
+      const draft = await diffFrames({ path: input.path });
+      const rendered = renderKaitai(draft, { id: input.id });
+      return {
+        id: rendered.id,
+        text: rendered.text,
+        dropped: rendered.dropped,
+        unknowns: draft.unknowns,
+      };
+    },
   ),
 ];
 
