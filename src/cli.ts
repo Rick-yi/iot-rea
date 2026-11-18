@@ -5,6 +5,7 @@
  */
 import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
+import { exportKsy } from './app/exportKsy.js';
 import { inspectCapture } from './app/inspectCapture.js';
 import { inspectFirmware } from './app/inspectFirmware.js';
 import { IotReaError } from './contracts/errors.js';
@@ -150,7 +151,20 @@ async function main(): Promise<number> {
         minSamples: number(flag(args, 'min-samples')),
         matchLimit: limit(args),
       });
-      if (json) printJson(result);
+
+      const ksyTarget = flag(args, 'ksy');
+      let ksyInfo: { path: string | null; id: string; bytes: number } | undefined;
+      if (ksyTarget !== undefined) {
+        const rendered = await exportKsy(result, ksyTarget, { id: flag(args, 'id') });
+        ksyInfo = { path: rendered.path, id: rendered.id, bytes: Buffer.byteLength(rendered.text) };
+        if (rendered.path === null) {
+          // `--ksy -` prints only the draft so stdout stays pipeable.
+          process.stdout.write(rendered.text);
+          return 0;
+        }
+      }
+
+      if (json) printJson(ksyInfo === undefined ? result : { ...result, ksy: ksyInfo });
       else {
         console.log(`samples ${result.sampleCount}, aligned length ${result.differential.alignedLength}`);
         for (const region of result.differential.regions) {
@@ -166,6 +180,9 @@ async function main(): Promise<number> {
           console.log(
             `checksum ${checksum.algorithm} @0x${checksum.position.toString(16)} ${checksum.endian} confidence ${checksum.confidence.toFixed(2)}`,
           );
+        }
+        if (ksyInfo !== undefined && ksyInfo.path !== null) {
+          console.log(`wrote ksy ${ksyInfo.path} (${ksyInfo.bytes} bytes, id ${ksyInfo.id})`);
         }
         printLimitations(result.unknowns);
       }
@@ -237,7 +254,8 @@ usage:
                         [--decode-as rule] [--packet-limit n]
                         [--offset n] [--limit n|all] [--two-pass] [--json]
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
-  iot-rea diff-frames <observations.json> [--min-samples n] [--json]
+  iot-rea diff-frames <observations.json> [--min-samples n]
+                        [--ksy <out.ksy>|--ksy -] [--id name] [--json]
   iot-rea decode-signals <recording> --decoders uart:rx=RX:baudrate=9600
                         [--input-format vcd] [--annotations a=b] [--json]
   iot-rea read-serial <log> [--json]

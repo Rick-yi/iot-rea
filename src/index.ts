@@ -13,6 +13,7 @@ export * from './domain/artifacts/srec.js';
 export * from './domain/artifacts/dfuse.js';
 export * from './app/inspectCapture.js';
 export * from './app/diffFrames.js';
+export * from './app/exportKsy.js';
 export * from './app/inspectFirmware.js';
 export * from './app/doctor.js';
 export * from './providers/serial.js';
