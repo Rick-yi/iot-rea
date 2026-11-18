@@ -6,7 +6,12 @@
  * `unverified`, never a silent pass.
  */
 import type { CheckResult, Hypothesis, HypothesisVerdict } from '../contracts/hypotheses.js';
-import { bcdFitArgsSchema, checksumCoverageArgsSchema, typeFitArgsSchema } from '../contracts/hypotheses.js';
+import {
+  bcdFitArgsSchema,
+  byteTransformArgsSchema,
+  checksumCoverageArgsSchema,
+  typeFitArgsSchema,
+} from '../contracts/hypotheses.js';
 import type { ChecksumAlgorithm } from './checksum.js';
 import { computeChecksum } from './checksum.js';
 import type { Observation } from './diff.js';
@@ -38,6 +43,12 @@ export const VERIFIERS: VerifierInfo[] = [
       'Decode packed BCD (optional byte offset removal, byte reversal and scale) and compare every sample with its label. Invalid nibbles or any mismatch reject the claim.',
     argsSchema: bcdFitArgsSchema,
   },
+  {
+    name: 'byte_transform',
+    description:
+      'Apply one byte-wise transform (xor, not, add, bit-reverse, nibble-swap) to the raw bytes, decode as a numeric type, and compare with labels. One transform per check; chains are not supported in v1.',
+    argsSchema: byteTransformArgsSchema,
+  },
 ];
 
 export function runCheck(check: { verifier: string; args: Record<string, unknown> }, observations: Observation[]): CheckResult {
@@ -48,6 +59,8 @@ export function runCheck(check: { verifier: string; args: Record<string, unknown
       return checkChecksumCoverage(check.args, observations);
     case 'bcd_fit':
       return checkBcdFit(check.args, observations);
+    case 'byte_transform':
+      return checkByteTransform(check.args, observations);
     default:
       return {
         verifier: check.verifier,
@@ -155,6 +168,96 @@ export function checkChecksumCoverage(rawArgs: unknown, observations: Observatio
     counterexamples,
     detail: matched === total ? undefined : `${total - matched} sample(s) contradicted the coverage claim`,
   };
+}
+
+const TYPE_WIDTH: Record<string, number> = {
+  u8: 1,
+  i8: 1,
+  u16: 2,
+  i16: 2,
+  u32: 4,
+  i32: 4,
+  f32: 4,
+};
+
+export function checkByteTransform(rawArgs: unknown, observations: Observation[]): CheckResult {
+  const parsed = byteTransformArgsSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return unsupported('byte_transform', `invalid byte_transform args: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
+  }
+  const args = parsed.data;
+
+  if (TYPE_WIDTH[args.type] !== args.width) {
+    return unsupported('byte_transform', `type ${args.type} needs width ${TYPE_WIDTH[args.type]}, got ${args.width}`);
+  }
+  const kind = args.transform.kind;
+  if ((kind === 'xor' || kind === 'add') && args.transform.operand === undefined) {
+    return unsupported('byte_transform', `transform "${kind}" requires an operand`);
+  }
+
+  let matched = 0;
+  let total = 0;
+  const counterexamples: string[] = [];
+
+  for (const observation of observations) {
+    const expected = expectedNumber(observation.vars[args.variable]);
+    if (expected === null) continue;
+    total += 1;
+
+    if (args.offset + args.width > observation.bytes.length) {
+      counterexamples.push(observation.frameId);
+      continue;
+    }
+
+    const raw = Buffer.from(observation.bytes.subarray(args.offset, args.offset + args.width));
+    const decoded = decodeNumber(args.type, args.endian ?? null, transformBytes(raw, args.transform), 0, args.width);
+    if (decoded === null) {
+      counterexamples.push(observation.frameId);
+      continue;
+    }
+    const value = args.factor === undefined ? decoded : decoded / args.factor;
+    if (matchesApprox(value, expected)) matched += 1;
+    else counterexamples.push(observation.frameId);
+  }
+
+  if (total === 0) {
+    return unsupported('byte_transform', `no sample carries variable "${args.variable}"`);
+  }
+
+  return {
+    verifier: 'byte_transform',
+    status: matched === total ? 'verified' : 'rejected',
+    matched,
+    total,
+    counterexamples,
+    detail: matched === total ? undefined : `${total - matched} sample(s) contradicted the transform claim`,
+  };
+}
+
+function transformBytes(
+  bytes: Buffer,
+  transform: { kind: 'xor' | 'not' | 'add' | 'bit-reverse' | 'nibble-swap'; operand?: number },
+): Buffer {
+  return Buffer.from(
+    bytes.map((byte) => {
+      switch (transform.kind) {
+        case 'xor':
+          return (byte ^ (transform.operand ?? 0)) & 0xff;
+        case 'add':
+          // The encoder added the operand; decoding removes it again.
+          return (byte - (transform.operand ?? 0)) & 0xff;
+        case 'not':
+          return (~byte) & 0xff;
+        case 'bit-reverse': {
+          let value = 0;
+          for (let bit = 0; bit < 8; bit += 1) value = (value << 1) | ((byte >> bit) & 1);
+          return value & 0xff;
+        }
+        case 'nibble-swap':
+          return ((byte & 0x0f) << 4) | ((byte >> 4) & 0x0f);
+      }
+    }),
+  );
 }
 
 export function checkBcdFit(rawArgs: unknown, observations: Observation[]): CheckResult {

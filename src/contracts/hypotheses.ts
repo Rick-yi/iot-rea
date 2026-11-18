@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 
-export const verificationKindSchema = z.enum(['type_fit', 'checksum_coverage', 'bcd_fit']);
+export const verificationKindSchema = z.enum(['type_fit', 'checksum_coverage', 'bcd_fit', 'byte_transform']);
 export type VerificationKind = z.infer<typeof verificationKindSchema>;
 
 export const hypothesisKindSchema = z.enum([
@@ -57,6 +57,31 @@ export const bcdFitArgsSchema = z.object({
   factor: z.number().positive().optional(),
 });
 export type BcdFitArgs = z.infer<typeof bcdFitArgsSchema>;
+
+export const numericFieldTypeSchema = z.enum(['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'f32']);
+
+export const byteTransformArgsSchema = z.object({
+  offset: z.number().int().nonnegative(),
+  width: z.number().int().min(1).max(8),
+  variable: z.string().min(1),
+  type: numericFieldTypeSchema,
+  endian: z.enum(['be', 'le']).nullable().optional(),
+  /**
+   * One byte-wise transform applied before numeric decoding.
+   * Chains are not expressible in v1; the raw bytes are always the input.
+   */
+  transform: z.object({
+    kind: z.enum(['xor', 'not', 'add', 'bit-reverse', 'nibble-swap']),
+    /**
+     * Required for xor and add; ignored by the others. `add` means the wire
+     * bytes had the operand added, so verification subtracts it back.
+     */
+    operand: z.number().int().min(0).max(255).optional(),
+  }),
+  /** Optional scale: expected = decoded / factor. */
+  factor: z.number().positive().optional(),
+});
+export type ByteTransformArgs = z.infer<typeof byteTransformArgsSchema>;
 
 export const checksumCoverageArgsSchema = z.object({
   algorithm: z.enum(['sum8', 'xor8', 'sum16', 'crc16-ccitt-false', 'crc16-modbus', 'crc32']),

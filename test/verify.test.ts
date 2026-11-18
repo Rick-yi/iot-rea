@@ -233,7 +233,12 @@ describe('evidence pack', () => {
     expect(pack.schemaVersion).toBe(1);
     expect(pack.frames).toHaveLength(3);
     expect(pack.framesOmitted).toBe(2);
-    expect(pack.verifiers.map((verifier) => verifier.name)).toEqual(['type_fit', 'checksum_coverage', 'bcd_fit']);
+    expect(pack.verifiers.map((verifier) => verifier.name)).toEqual([
+      'type_fit',
+      'checksum_coverage',
+      'bcd_fit',
+      'byte_transform',
+    ]);
     expect(pack.notes.join(' ')).toContain('not the whole capture');
     expect(evidence.source.sha256).toHaveLength(64);
   });
