@@ -79,10 +79,12 @@ export async function decodeSignalRecording(request: SigrokRequest): Promise<Sig
     });
 
     if (outcome.exitCode !== 0) {
-      throw new IotReaError('invalid_request', `sigrok-cli exited with ${outcome.exitCode ?? 'signal'}`, {
-        exitCode: outcome.exitCode,
-        stderr: outcome.stderr,
-      });
+      const excerpt = outcome.stderr.trim().split(/\r?\n/)[0] ?? '';
+      throw new IotReaError(
+        'invalid_request',
+        `sigrok-cli exited with ${outcome.exitCode ?? 'signal'}${excerpt === '' ? '' : `: ${excerpt}`}`,
+        { exitCode: outcome.exitCode, stderr: outcome.stderr },
+      );
     }
 
     const lines = outcome.stdout.split(/\r?\n/).filter((line) => line !== '');

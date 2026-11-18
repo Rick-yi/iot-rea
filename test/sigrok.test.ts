@@ -31,12 +31,14 @@ describe.skipIf(!hasSigrok)('decode-signals with sigrok-cli', () => {
       const page = await decodeSignalRecording({
         path: recording,
         decoders: ['uart:rx=RX:baudrate=9600'],
+        inputFormat: 'vcd',
         annotations: ['uart=rx-data'],
         lineLimit: null,
       });
 
-      expect(page.lines.length).toBeGreaterThanOrEqual(bytes.length);
-      expect(page.window.total).toBeGreaterThanOrEqual(bytes.length);
+      const diagnostic = `stderr: ${page.evidence.stderr ?? ''}`;
+      expect(page.lines.length, diagnostic).toBeGreaterThanOrEqual(bytes.length);
+      expect(page.window.total, diagnostic).toBeGreaterThanOrEqual(bytes.length);
       expect(page.evidence.source.sha256).toHaveLength(64);
       expect(page.evidence.tool?.versionBanner).toContain('sigrok');
     } finally {

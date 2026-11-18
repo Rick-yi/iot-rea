@@ -14,7 +14,8 @@ export interface UartVcdOptions {
 export function buildUartVcd(bytes: number[], options: UartVcdOptions = {}): string {
   const baud = options.baud ?? 9600;
   const gapBits = options.gapBits ?? 4;
-  const bitNs = Math.round(1_000_000_000 / baud);
+  // 1 µs timescale keeps the sample count small enough for the decoder.
+  const bitUs = Math.round(1_000_000 / baud);
   const transitions: Array<{ time: number; level: 0 | 1 }> = [{ time: 0, level: 1 }];
 
   let cursor = 0;
@@ -22,15 +23,15 @@ export function buildUartVcd(bytes: number[], options: UartVcdOptions = {}): str
     transitions.push({ time: cursor, level: 0 }); // start bit
     for (let bit = 0; bit < 8; bit += 1) {
       const level = ((byte >> bit) & 1) === 1 ? 1 : 0;
-      transitions.push({ time: cursor + (1 + bit) * bitNs, level });
+      transitions.push({ time: cursor + (1 + bit) * bitUs, level });
     }
-    transitions.push({ time: cursor + 9 * bitNs, level: 1 }); // stop bit
-    cursor += (10 + gapBits) * bitNs;
+    transitions.push({ time: cursor + 9 * bitUs, level: 1 }); // stop bit
+    cursor += (10 + gapBits) * bitUs;
     transitions.push({ time: cursor, level: 1 });
   }
 
   const header = [
-    '$timescale 1ns $end',
+    '$timescale 1 us $end',
     '$scope module logic $end',
     '$var wire 1 ! RX $end',
     '$upscope $end',
