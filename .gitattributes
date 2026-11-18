@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+# Recorded data and images must never be line-ending converted
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pcap binary
+*.pcapng binary
+*.sr binary
+*.srzip binary
+*.uf2 binary
+*.dfu binary
+*.bin binary
