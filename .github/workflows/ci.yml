@@ -28,21 +28,10 @@ jobs:
       - name: sigrok uart decoder
         run: sigrok-cli -L | grep -q uart
       - run: npm run typecheck
-      - name: npm test
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee /tmp/iot-rea-test.log
+      - run: npm test
         env:
           # Integration tests are not allowed to skip silently in CI.
           IOT_REA_REQUIRE_TOOLS: "1"
-      - name: Surface test failures
-        if: failure()
-        run: |
-          if [ -f /tmp/iot-rea-test.log ]; then
-            tail -n 25 /tmp/iot-rea-test.log | tr -d '\r' | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-          fi
       - run: npm run build
       - name: CLI smoke test
         run: |
