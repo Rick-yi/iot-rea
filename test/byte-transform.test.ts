@@ -90,6 +90,51 @@ describe('byte_transform', () => {
     ).toBe('verified');
   });
 
+  it('applies transform chains in the declared order', () => {
+    // Wire bytes: ((value XOR 0xAA) + 0x10). Decoding therefore removes
+    // 0x10 first, then XORs 0xAA.
+    const observations = obs([0x12, 0x34, 0x56], (value) => {
+      const mixed = (value ^ 0xaa) + 0x10;
+      return Buffer.from([mixed & 0xff]);
+    });
+
+    const ordered = verifyHypothesis(
+      claim({
+        offset: 2, width: 1, variable: 'value', type: 'u8',
+        transforms: [
+          { kind: 'add', operand: 0x10 },
+          { kind: 'xor', operand: 0xaa },
+        ],
+      }),
+      observations,
+    );
+    expect(ordered.status).toBe('verified');
+
+    const reversed = verifyHypothesis(
+      claim({
+        offset: 2, width: 1, variable: 'value', type: 'u8',
+        transforms: [
+          { kind: 'xor', operand: 0xaa },
+          { kind: 'add', operand: 0x10 },
+        ],
+      }),
+      observations,
+    );
+    expect(reversed.status).toBe('rejected');
+  });
+
+  it('rejects an empty chain as unsupported rather than a pass', () => {
+    const observations = obs([1, 2, 3], (value) => Buffer.from([value]));
+
+    const verdict = verifyHypothesis(
+      claim({ offset: 2, width: 1, variable: 'value', type: 'u8', transforms: [] }),
+      observations,
+    );
+
+    expect(verdict.status).toBe('unverified');
+    expect(verdict.checks[0]?.detail).toContain('transform');
+  });
+
   it('marks impossible argument combinations as unsupported', () => {
     const observations = obs([1, 2, 3], (value) => Buffer.from([value]));
 
