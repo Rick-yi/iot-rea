@@ -18,3 +18,4 @@ export * from './app/doctor.js';
 export * from './providers/serial.js';
 export * from './providers/tshark.js';
 export * from './providers/sigrok.js';
+export * from './mcp/tools.js';

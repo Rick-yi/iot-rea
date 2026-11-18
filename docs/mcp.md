@@ -1,0 +1,65 @@
+# 作为 MCP 服务运行
+
+`iot-rea mcp` 在 stdio 上启动 MCP 服务，把同一套工作流暴露给 agent。分析逻辑与 CLI 完全共用，不存在第二份实现。
+
+## 启动
+
+```bash
+npm run build
+node /absolute/path/to/dist/cli.js mcp
+```
+
+stdout 只属于 MCP 协议；诊断信息只写 stderr。服务是只读的（工具声明 `readOnlyHint: true`，`openWorldHint: false`）。
+
+## 客户端配置
+
+Claude Code：
+
+```bash
+claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
+```
+
+通用 `mcpServers` 配置（Cursor / Claude Desktop / 其他兼容客户端）：
+
+```json
+{
+  "mcpServers": {
+    "iot-rea": {
+      "command": "node",
+      "args": ["/absolute/path/to/iot-rea/dist/cli.js", "mcp"],
+      "env": {
+        "IOT_REA_TSHARK": "/usr/bin/tshark",
+        "IOT_REA_SIGROK": "/usr/bin/sigrok-cli"
+      }
+    }
+  }
+}
+```
+
+`env` 里的两个变量都是可选的；缺失时对应工具返回 `missing_tool`，`doctor` 会明确列出。
+
+## 工具
+
+| 工具 | 输入要点 | 返回 |
+|---|---|---|
+| `doctor` | 无 | Node 支持情况、tshark / sigrok-cli 可用性与版本 |
+| `inspect_capture` | `path`、`fields[]`、`display_filter`、`decode_as[]`、`packet_limit`、分页参数 | 行、`output_window`、Evidence |
+| `diff_frames` | `path`（观测 JSON）、`min_samples` | 变异区段、字段候选、校验候选、未知项 |
+| `inspect_firmware` | `path`、可选 `extract_to` | 容器清单与区域，或提取结果 |
+| `decode_signals` | `path`、`decoders[]`、`input_format`、`annotations[]` | 解码文本行 + 分页窗口 |
+| `read_serial` | `path` | 归一化帧、跳过行数 |
+
+## 约定
+
+- 每个成功结果都包含 `evidence`：源文件路径 / SHA-256 / 大小、工具路径 / 版本 banner / 可执行文件 digest、argv、stderr、分页窗口与 limitations。
+- 失败不会伪装成空结果：结构化错误带 `code`（如 `missing_tool`、`output_limit`、`integrity_failure`），并保留已捕获的生产者输出。
+- `output_window` 的 `total` 只描述所选过滤器 / 读入范围内的匹配数；空页不证明范围外不存在。
+- 输入路径按调用方本地路径解析；服务不下载、不安装、不连接设备。
+
+## 给 agent 的提示词示例
+
+```text
+用 iot-rea 的 inspect_capture 读取 device.pcapng 的 udp 载荷，
+再用 diff_frames 比较这组只改变温度的样本，给出字段偏移与置信度。
+不确定的部分明确列成 unknown，不要补全。
+```
