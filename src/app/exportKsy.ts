@@ -64,6 +64,29 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
     layout.push(toLayout(field));
   }
 
+  // Derived fields describe the frame itself; place them before checksums so
+  // a detected length field appears in the sequence with its relation in doc.
+  for (const derived of draft.derived) {
+    if (layout.some((placed) => overlaps(placed, { offset: derived.offset, width: derived.width }))) {
+      continue;
+    }
+    layout.push({
+      offset: derived.offset,
+      width: derived.width,
+      id: sanitizeId(`length_${derived.relation}_${derived.offset}`),
+      type:
+        derived.type === 'u8'
+          ? 'u1'
+          : derived.endian === 'le'
+            ? 'u2le'
+            : 'u2be',
+      doc:
+        `derived ${derived.relation}; ${derived.matched}/${derived.total} samples matched; ` +
+        'describes the frame, not payload semantics',
+      priority: 0.9,
+    });
+  }
+
   // Place checksums only where no inferred field already covers them.
   const seenPositions = new Set<number>();
   for (const checksum of draft.checksums) {

@@ -39,11 +39,18 @@ export interface DiffReport {
   unknowns: string[];
   /** Frames that did not take part because their length was shorter. */
   excludedFrameIds: string[];
+  /** Offsets excluded from variability analysis, e.g. detected checksums. */
+  maskedOffsets?: number[];
 }
 
 const VARIABLE_THRESHOLD = 0.1;
 
-export function diffObservations(observations: Observation[]): DiffReport {
+export interface DiffOptions {
+  /** Byte positions known to be derived (checksums); they are not treated as fields. */
+  excludeOffsets?: ReadonlySet<number>;
+}
+
+export function diffObservations(observations: Observation[], options: DiffOptions = {}): DiffReport {
   if (observations.length < 2) {
     return {
       sampleCount: observations.length,
@@ -78,7 +85,20 @@ export function diffObservations(observations: Observation[]): DiffReport {
   const stableOffsets: number[] = [];
   let current: VariableRegion | null = null;
 
+  const excluded = options.excludeOffsets;
+
   for (let offset = 0; offset < alignedLength; offset += 1) {
+    if (excluded?.has(offset) === true) {
+      // Derived bytes are masked: they stay out of the variable regions and
+      // out of field inference, but are recorded so callers can see the mask.
+      stableOffsets.push(offset);
+      if (current !== null) {
+        regions.push(current);
+        current = null;
+      }
+      continue;
+    }
+
     const values = usable.map((obs) => obs.bytes[offset] ?? 0);
     const distinct = new Set(values).size;
     const common = mostCommon(values);
@@ -125,6 +145,7 @@ export function diffObservations(observations: Observation[]): DiffReport {
     stableOffsets,
     unknowns,
     excludedFrameIds,
+    maskedOffsets: excluded === undefined ? undefined : [...excluded].filter((offset) => offset < alignedLength),
   };
 }
 

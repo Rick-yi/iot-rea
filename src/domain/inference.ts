@@ -131,6 +131,18 @@ function isBetterCandidate(
   return typeRank(type) > typeRank(best.type);
 }
 
+function overlapsExcluded(
+  offset: number,
+  width: number,
+  excluded: ReadonlySet<number> | undefined,
+): boolean {
+  if (excluded === undefined) return false;
+  for (let index = offset; index < offset + width; index += 1) {
+    if (excluded.has(index)) return true;
+  }
+  return false;
+}
+
 function typeRank(type: FieldType): number {
   if (type === 'u8' || type === 'u16' || type === 'u32') return 3;
   if (type === 'f32') return 2;
@@ -152,9 +164,15 @@ function alignedLength(observations: Observation[]): number {
   return Number.isFinite(length) ? length : 0;
 }
 
+export interface InferenceOptions {
+  /** Byte positions known to be derived (checksums); never reported as fields. */
+  excludeOffsets?: ReadonlySet<number>;
+}
+
 export function inferFields(
   observations: Observation[],
   candidates?: { minSamples?: number },
+  options: InferenceOptions = {},
 ): InferenceReport {
   const minSamples = candidates?.minSamples ?? 3;
   const fields: FieldCandidate[] = [];
@@ -178,8 +196,8 @@ export function inferFields(
   for (const variable of variables) {
     const stringValues = observations.every((obs) => typeof obs.vars[variable] === 'string');
     const best = stringValues
-      ? bestAsciiCandidate(observations, variable, length)
-      : bestNumericCandidate(observations, variable, length);
+      ? bestAsciiCandidate(observations, variable, length, options)
+      : bestNumericCandidate(observations, variable, length, options);
 
     if (best !== null) {
       fields.push(best);
@@ -195,6 +213,7 @@ function bestNumericCandidate(
   observations: Observation[],
   variable: string,
   length: number,
+  options: InferenceOptions,
 ): FieldCandidate | null {
   let best: FieldCandidate | null = null;
   const total = observations.length;
@@ -202,6 +221,7 @@ function bestNumericCandidate(
   for (const spec of NUMERIC_TYPES) {
     for (const transform of transformsFor(observations, variable, spec, length)) {
       for (let offset = 0; offset + spec.width <= length; offset += 1) {
+        if (overlapsExcluded(offset, spec.width, options.excludeOffsets)) continue;
         let matched = 0;
         for (const obs of observations) {
           const expected = toNumber(obs.vars[variable]);
@@ -271,9 +291,11 @@ function bestAsciiCandidate(
   observations: Observation[],
   variable: string,
   length: number,
+  options: InferenceOptions,
 ): FieldCandidate | null {
   let best: FieldCandidate | null = null;
   for (let offset = 0; offset < length; offset += 1) {
+    if (options.excludeOffsets?.has(offset) === true) continue;
     let matched = 0;
     let widest = 1;
     for (const obs of observations) {

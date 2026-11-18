@@ -11,6 +11,8 @@ import type { Evidence } from '../contracts/evidence.js';
 import { IotReaError } from '../contracts/errors.js';
 import type { ChecksumCandidate } from '../domain/checksum.js';
 import { checksumCandidates } from '../domain/checksum.js';
+import type { DerivedField } from '../domain/derived.js';
+import { detectDerivedFields } from '../domain/derived.js';
 import type { DiffReport, Observation } from '../domain/diff.js';
 import { diffObservations } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
@@ -37,6 +39,8 @@ export interface SchemaDraft {
   differential: DiffReport;
   fields: FieldCandidate[];
   checksums: ChecksumCandidate[];
+  /** Length-like fields that describe the frame rather than the payload. */
+  derived: DerivedField[];
   unknowns: string[];
   evidence: Evidence;
 }
@@ -86,14 +90,29 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
   const parsed = diffFramesInputSchema.parse(input);
   const { observations, digest, size } = await loadObservations(parsed.path);
 
-  const differential = diffObservations(observations);
-  const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 });
   const checksums = checksumCandidates(observations);
+
+  // Checksums are derived bytes: mask them out of variability analysis and
+  // field inference so a changing CRC is not mistaken for a payload field.
+  const masked = new Set<number>();
+  for (const candidate of checksums.candidates) {
+    if (candidate.confidence < 0.8) continue;
+    for (let index = candidate.position; index < candidate.position + candidate.width; index += 1) {
+      masked.add(index);
+    }
+  }
+
+  const differential = diffObservations(observations, { excludeOffsets: masked });
+  const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 }, { excludeOffsets: masked });
+  const derived = detectDerivedFields(observations, { excludeOffsets: masked });
 
   const unknowns = [
     ...differential.unknowns,
     ...inference.unknowns,
     ...checksums.unknowns,
+    ...(masked.size > 0
+      ? [`${masked.size} byte(s) were masked as derived (checksum); they are not treated as payload fields`]
+      : []),
     'frame layout outside the compared prefix is not addressed by positional alignment',
     'field semantics (units, scaling, signedness) are hypotheses until replayed on a device',
   ];
@@ -103,6 +122,7 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     differential,
     fields: inference.fields,
     checksums: checksums.candidates,
+    derived,
     unknowns,
     evidence: {
       source: { path: parsed.path, sha256: digest, size },
