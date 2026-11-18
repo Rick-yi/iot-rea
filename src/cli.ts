@@ -1,0 +1,269 @@
+#!/usr/bin/env node
+/**
+ * CLI adapter. It translates arguments and formats output; it contains no
+ * analysis logic, so a future MCP adapter can bind the same workflows.
+ */
+import { doctor } from './app/doctor.js';
+import { diffFrames } from './app/diffFrames.js';
+import { inspectCapture } from './app/inspectCapture.js';
+import { inspectFirmware } from './app/inspectFirmware.js';
+import { IotReaError } from './contracts/errors.js';
+import { decodeSignalRecording } from './providers/sigrok.js';
+import { readSerialLog } from './providers/serial.js';
+
+interface Args {
+  command: string;
+  positional: string[];
+  flags: Map<string, string | true>;
+}
+
+function parseArgs(argv: string[]): Args {
+  const positional: string[] = [];
+  const flags = new Map<string, string | true>();
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] as string;
+    if (arg.startsWith('--')) {
+      const [rawKey, inlineValue] = arg.slice(2).split('=', 2);
+      const key = rawKey ?? '';
+      if (inlineValue !== undefined) {
+        flags.set(key, inlineValue);
+        continue;
+      }
+      const next = argv[index + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        flags.set(key, next);
+        index += 1;
+      } else {
+        flags.set(key, true);
+      }
+      continue;
+    }
+    positional.push(arg);
+  }
+
+  return { command: positional.shift() ?? 'help', positional, flags };
+}
+
+function flag(args: Args, name: string): string | undefined {
+  const value = args.flags.get(name);
+  return typeof value === 'string' ? value : undefined;
+}
+
+function has(args: Args, name: string): boolean {
+  return args.flags.has(name);
+}
+
+function list(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const parts = value.split(',').map((part) => part.trim()).filter((part) => part !== '');
+  return parts.length === 0 ? undefined : parts;
+}
+
+function number(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function limit(args: Args): number | null | undefined {
+  const value = flag(args, 'limit');
+  if (value === undefined) return undefined;
+  return value === 'all' ? null : number(value);
+}
+
+async function main(): Promise<number> {
+  const args = parseArgs(process.argv.slice(2));
+  const json = has(args, 'json');
+  const target = args.positional[0];
+
+  switch (args.command) {
+    case 'doctor': {
+      const report = await doctor();
+      if (json) printJson(report);
+      else {
+        console.log(`node ${report.node.version} (${report.node.supported ? 'supported' : 'unsupported'})`);
+        for (const tool of report.tools) {
+          console.log(
+            `${tool.available ? 'ok  ' : 'miss'} ${tool.name}${tool.versionBanner === null ? '' : ` - ${tool.versionBanner}`}`,
+          );
+          if (!tool.available && tool.reason !== null) console.log(`     ${tool.reason}`);
+        }
+        for (const limitation of report.limitations) console.log(`limit ${limitation}`);
+      }
+      return 0;
+    }
+
+    case 'inspect-capture': {
+      requireTarget(target, 'inspect-capture');
+      const result = await inspectCapture({
+        path: target,
+        fields: list(flag(args, 'fields')),
+        displayFilter: flag(args, 'filter'),
+        decodeAs: list(flag(args, 'decode-as')),
+        packetLimit: number(flag(args, 'packet-limit')),
+        matchOffset: number(flag(args, 'offset')),
+        matchLimit: limit(args),
+        twoPass: has(args, 'two-pass'),
+      });
+      if (json) printJson(result);
+      else {
+        console.log(
+          `rows ${result.window.returned}/${result.window.total} (offset ${result.window.offset}, hasMore ${result.window.hasMore})`,
+        );
+        for (const row of result.rows) {
+          console.log(`#${row.frameNumber} ${JSON.stringify(row.fields)}`);
+        }
+        printLimitations(result.evidence.limitations);
+      }
+      return 0;
+    }
+
+    case 'inspect-firmware': {
+      requireTarget(target, 'inspect-firmware');
+      const result = await inspectFirmware({
+        path: target,
+        extractTo: flag(args, 'extract'),
+      });
+      if (json) printJson(result);
+      else {
+        const inv = result.inventory;
+        console.log(`format ${inv.format} size ${inv.size}`);
+        for (const region of inv.regions) {
+          console.log(`region ${region.path} (${region.length} bytes)`);
+        }
+        for (const [key, value] of Object.entries(inv.metadata)) {
+          console.log(`${key} ${JSON.stringify(value)}`);
+        }
+        for (const extracted of result.extracted) {
+          console.log(`wrote ${extracted.path} (${extracted.bytes} bytes)`);
+        }
+        printLimitations(inv.unknowns);
+      }
+      return 0;
+    }
+
+    case 'diff-frames': {
+      requireTarget(target, 'diff-frames');
+      const result = await diffFrames({
+        path: target,
+        minSamples: number(flag(args, 'min-samples')),
+        matchLimit: limit(args),
+      });
+      if (json) printJson(result);
+      else {
+        console.log(`samples ${result.sampleCount}, aligned length ${result.differential.alignedLength}`);
+        for (const region of result.differential.regions) {
+          console.log(`variable 0x${region.offset.toString(16)}..0x${region.end.toString(16)} (${region.width} bytes)`);
+        }
+        for (const field of result.fields) {
+          const endian = field.endian === null ? '' : ` ${field.endian}`;
+          console.log(
+            `field ${field.variable}: ${field.type}${endian} @0x${field.offset.toString(16)} width ${field.width} confidence ${field.confidence.toFixed(2)}`,
+          );
+        }
+        for (const checksum of result.checksums) {
+          console.log(
+            `checksum ${checksum.algorithm} @0x${checksum.position.toString(16)} ${checksum.endian} confidence ${checksum.confidence.toFixed(2)}`,
+          );
+        }
+        printLimitations(result.unknowns);
+      }
+      return 0;
+    }
+
+    case 'decode-signals': {
+      requireTarget(target, 'decode-signals');
+      const decoders = list(flag(args, 'decoders'));
+      if (decoders === undefined) throw new IotReaError('invalid_request', '--decoders is required, e.g. uart:rx=RX:baudrate=9600');
+      const result = await decodeSignalRecording({
+        path: target,
+        decoders,
+        inputFormat: flag(args, 'input-format'),
+        annotations: list(flag(args, 'annotations')),
+        lineOffset: number(flag(args, 'offset')),
+        lineLimit: limit(args),
+      });
+      if (json) printJson(result);
+      else {
+        console.log(`lines ${result.window.returned}/${result.window.total} (hasMore ${result.window.hasMore})`);
+        for (const line of result.lines) console.log(line);
+      }
+      return 0;
+    }
+
+    case 'read-serial': {
+      requireTarget(target, 'read-serial');
+      const result = await readSerialLog(target);
+      if (json) printJson(result);
+      else {
+        console.log(`frames ${result.frames.length}, skipped lines ${result.skippedLines}`);
+        for (const row of result.rows.slice(0, 20)) {
+          console.log(`#${row.index} ${row.direction} ${row.hex}`);
+        }
+        if (result.rows.length > 20) console.log(`... ${result.rows.length - 20} more`);
+        printLimitations(result.evidence.limitations);
+      }
+      return 0;
+    }
+
+    case 'help':
+    default:
+      printHelp();
+      return args.command === 'help' ? 0 : 1;
+  }
+}
+
+function requireTarget(target: string | undefined, command: string): asserts target is string {
+  if (target === undefined) {
+    throw new IotReaError('invalid_request', `${command} requires a file path`);
+  }
+}
+
+function printJson(value: unknown): void {
+  console.log(JSON.stringify(value, null, 2));
+}
+
+function printLimitations(limitations: string[] | undefined): void {
+  for (const limitation of limitations ?? []) console.log(`limit ${limitation}`);
+}
+
+function printHelp(): void {
+  console.log(`iot-rea - evidence-first reverse engineering for IoT captures
+
+usage:
+  iot-rea doctor [--json]
+  iot-rea inspect-capture <capture> [--fields a,b] [--filter expr]
+                        [--decode-as rule] [--packet-limit n]
+                        [--offset n] [--limit n|all] [--two-pass] [--json]
+  iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
+  iot-rea diff-frames <observations.json> [--min-samples n] [--json]
+  iot-rea decode-signals <recording> --decoders uart:rx=RX:baudrate=9600
+                        [--input-format vcd] [--annotations a=b] [--json]
+  iot-rea read-serial <log> [--json]
+
+environment:
+  IOT_REA_TSHARK   absolute path to tshark
+  IOT_REA_SIGROK   absolute path to sigrok-cli
+
+boundaries:
+  reads recorded data only; does not open interfaces or control devices
+  external tools are caller-supplied and never installed`);
+}
+
+main().then(
+  (code) => {
+    process.exitCode = code;
+  },
+  (cause: unknown) => {
+    if (cause instanceof IotReaError) {
+      console.error(`error[${cause.code}] ${cause.message}`);
+      if (Object.keys(cause.details).length > 0) {
+        console.error(JSON.stringify(cause.details, null, 2));
+      }
+    } else {
+      console.error(`error ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+    process.exitCode = 1;
+  },
+);
