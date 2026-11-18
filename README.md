@@ -58,6 +58,22 @@ frame,temperature
 
 没有 payload 的帧会被跳过并计入 `stats.skippedNoPayload`，未打标签的样本只参与对齐、不参与字段推断，两者都会写进 `unknowns`。
 
+## BLE / ATT
+
+HCI 或 btsnoop 抓包可以直接归一化成按 handle 分通道的帧：
+
+```bash
+node dist/cli.js ble-frames capture.pcapng \
+  --peer AA:BB:CC:DD:EE:FF \
+  --labels ble-labels.csv \
+  --out ble.json
+```
+
+- 每个 ATT 帧按 handle 归入 `att:0x0012` 这样的通道；没有 handle 的控制帧归入 `att:control`。
+- 方向优先按 HCI 源/目的地址与 `--peer` 比对；没有 `--peer` 时按 ATT opcode 推断（请求视为 tx、通知/响应视为 rx，即假设 central 是主机），并在 `limitations` 里写明这个前提。
+- `btatt.value` 的重复段会拼接；没有 value 的帧跳过并计数；未知方向也会计数。
+- 带 `--labels` 时输出 `observations`，可直接交给 `diff-frames`，标签按帧号匹配。
+
 ## 差分输入格式
 
 `diff-frames` 的输入是一组**只改变一个业务值**的样本：

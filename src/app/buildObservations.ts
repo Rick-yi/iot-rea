@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Evidence } from '../contracts/evidence.js';
 import { IotReaError } from '../contracts/errors.js';
+import { normalizeHex, type Frame } from '../domain/frame.js';
 import type { LabelMap, LabelValue } from '../domain/labels.js';
 import { parseLabels } from '../domain/labels.js';
 import { inspectPacketCapture, type TsharkRow } from '../providers/tshark.js';
@@ -103,12 +104,27 @@ export function rowsToObservations(
   return { observations, stats, unknowns };
 }
 
-export function normalizeHex(value: string | string[] | undefined): string | null {
-  if (value === undefined) return null;
-  const joined = Array.isArray(value) ? value.join('') : value;
-  const cleaned = joined.replace(/0x/gi, '').replace(/[\s:,_-]/g, '').toLowerCase();
-  if (cleaned === '' || cleaned.length % 2 !== 0 || !/^[0-9a-f]+$/.test(cleaned)) return null;
-  return cleaned;
+export { normalizeHex } from '../domain/frame.js';
+
+export interface FramesAssembly {
+  observations: DraftObservation[];
+  unlabelled: number;
+}
+
+/** Convert normalized frames (serial, BLE, ...) into labelled observations. */
+export function framesToDraftObservations(frames: Frame[], labels: LabelMap): FramesAssembly {
+  const observations: DraftObservation[] = [];
+  let unlabelled = 0;
+  for (const frame of frames) {
+    const vars = labels.get(frame.nativeId);
+    if (vars === undefined) unlabelled += 1;
+    observations.push({
+      frameId: frame.nativeId,
+      vars: vars ?? {},
+      hex: frame.bytes.toString('hex'),
+    });
+  }
+  return { observations, unlabelled };
 }
 
 export async function loadLabels(

@@ -47,6 +47,18 @@ export function parseHex(text: string): Buffer | null {
   return Buffer.from(hex, 'hex');
 }
 
+/**
+ * Normalize producer hex (a string or repeated values) to lowercase, unseparated
+ * hex. Returns null when the value is absent or not valid hex.
+ */
+export function normalizeHex(value: string | string[] | undefined): string | null {
+  if (value === undefined) return null;
+  const joined = Array.isArray(value) ? value.join('') : value;
+  const cleaned = joined.replace(/0x/gi, '').replace(/[\s:,_-]/g, '').toLowerCase();
+  if (cleaned === '' || cleaned.length % 2 !== 0 || !/^[0-9a-f]+$/.test(cleaned)) return null;
+  return cleaned;
+}
+
 export function toRow(frame: Frame): FrameRow {
   return {
     index: frame.index,

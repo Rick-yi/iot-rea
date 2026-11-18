@@ -3,6 +3,7 @@
  * CLI adapter. It translates arguments and formats output; it contains no
  * analysis logic, so a future MCP adapter can bind the same workflows.
  */
+import { bleFrames } from './app/bleFrames.js';
 import { buildObservations } from './app/buildObservations.js';
 import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
@@ -153,6 +154,37 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'ble-frames': {
+      requireTarget(target, 'ble-frames');
+      const result = await bleFrames({
+        path: target,
+        peerAddress: flag(args, 'peer'),
+        displayFilter: flag(args, 'filter'),
+        packetLimit: number(flag(args, 'packet-limit')),
+        labelsPath: flag(args, 'labels'),
+        labelsFormat: flag(args, 'labels-format') as 'auto' | 'csv' | 'json' | undefined,
+      });
+
+      const outPath = flag(args, 'out');
+      if (outPath === undefined || outPath === '-') {
+        printJson(result);
+        return 0;
+      }
+
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+      if (json) {
+        printJson({ ...result, out: outPath });
+      } else {
+        console.log(
+          `wrote ${outPath}: ${result.frames.length} frame(s), ` +
+            `${result.observations?.length ?? 0} observation(s), ${result.stats.unknownDirection} unknown direction`,
+        );
+        printLimitations(result.unknowns);
+      }
+      return 0;
+    }
+
     case 'inspect-firmware': {
       requireTarget(target, 'inspect-firmware');
       const result = await inspectFirmware({
@@ -296,6 +328,9 @@ usage:
   iot-rea build-observations <capture> [--payload-field data.data]
                         [--labels <csv|json>] [--labels-format auto|csv|json]
                         [--filter expr] [--decode-as rule] [--packet-limit n]
+                        [--out <obs.json>|--out -] [--json]
+  iot-rea ble-frames <capture> [--peer <bd_addr>] [--labels <csv|json>]
+                        [--filter expr] [--packet-limit n]
                         [--out <obs.json>|--out -] [--json]
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
   iot-rea diff-frames <observations.json> [--min-samples n]
