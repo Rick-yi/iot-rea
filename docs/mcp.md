@@ -53,6 +53,7 @@ claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
 | `evidence_pack` | `path`、`max_frames` | 证据包：样本、字段候选、变异区段、校验候选、未知项、样本帧、可用 verifier |
 | `verify_hypotheses` | `path`、`hypotheses[]` | 每条假设的 `verified` / `rejected` / `unverified` 与反例 |
 | `infer_transitions` | `path`（帧 JSON）、`signature_bytes`、`channel` | 节点/边计数、Mermaid 图、未知项 |
+| `export_telemetry` | `path`、`device_id`、`out_dir`、`min_confidence`、`ts_base`、`ts_step`、`schema_version` | 写入 `mapping.json` + `telemetry.jsonl`；不发布、不联网 |
 | `export_ksy` | `path`（观测 JSON）、`id` | 草稿 `.ksy` 文本、被丢弃的重叠假设、未知项（不写文件） |
 
 ## 约定

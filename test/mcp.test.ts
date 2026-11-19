@@ -42,6 +42,7 @@ describe('tool definitions', () => {
       'evidence_pack',
       'verify_hypotheses',
       'infer_transitions',
+      'export_telemetry',
       'export_ksy',
     ]);
     expect(new Set(names).size).toBe(names.length);
