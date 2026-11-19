@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.14.0] - 2026-11-19
+
+### Added
+
+- CI real-capture regressions: a Modbus/TCP plant trace (MIT,
+  Cincosavvy/MODBUS-WATCH) and the MQTTset IoT capture (MIT,
+  l-laura/MQTTset-reduced), fetched at test time rather than committed.
+- Tests assert TShark field extraction and evidence plumbing on those captures.
+
 ## [0.13.0] - 2026-11-19
 
 ### Added

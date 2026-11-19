@@ -31,4 +31,11 @@ describe('toolchain', () => {
     expect(configuredOrPath('IOT_REA_SIGROK', 'sigrok-cli')).toBe(true);
     expect(configuredOrPath('IOT_REA_KAITAI', 'kaitai-struct-compiler')).toBe(true);
   });
+
+  it.skipIf(!required)('real capture corpora are provided when required', () => {
+    for (const setting of ['IOT_REA_CAPTURE_MODBUS', 'IOT_REA_CAPTURE_MQTT']) {
+      const file = process.env[setting];
+      expect(file !== undefined && existsSync(file)).toBe(true);
+    }
+  });
 });
