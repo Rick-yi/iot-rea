@@ -239,7 +239,7 @@ npm test          # 缺少 tshark 时集成测试自动跳过，并保留 limita
 npm run build
 ```
 
-CI 会安装 tshark 与 sigrok-cli，并设置 `IOT_REA_REQUIRE_TOOLS=1`：在 CI 中缺失工具会直接失败，而不是把集成测试静默跳过。UART 的 `.vcd` 录制由 `test/fixtures/uartVcd.ts` 按 9600 8N1 生成，BLE 的 btsnoop 由 `test/fixtures/bleBtsnoop.ts` 按 HCI ACL / L2CAP / ATT 结构生成，都不提交二进制样本。两者都是**合成夹具，不是真机抓包**；CI 另外会拉取两份公开的真实/试验床抓包（Modbus plant、MQTTset）做回归，同样不提交二进制。本地没有工具时保留 skip，方便离线开发。
+CI 会安装 tshark 与 sigrok-cli，并设置 `IOT_REA_REQUIRE_TOOLS=1`：在 CI 中缺失工具会直接失败，而不是把集成测试静默跳过。UART 的 `.vcd` 录制由 `test/fixtures/uartVcd.ts` 按 9600 8N1 生成，BLE 的 btsnoop 由 `test/fixtures/bleBtsnoop.ts` 按 HCI ACL / L2CAP / ATT 结构生成，都不提交二进制样本。两者都是**合成夹具，不是真机抓包**；CI 另外会拉取公开的真实/试验床抓包（Modbus plant、MQTTset）以及两份真机 BLE ATT 日志（公开 issue 附件）做回归，同样不提交二进制。本地没有工具时保留 skip，方便离线开发。
 
 测试夹具全部由代码生成（`test/helpers.ts`），不提交二进制样本。协议结论请按 `docs/specs/_template/spec.md` 记录，架构决策写 ADR。
 

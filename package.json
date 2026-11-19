@@ -1,6 +1,6 @@
 {
   "name": "iot-rea",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Evidence-first reverse engineering for IoT captures, signals and firmware",
   "license": "MIT",
   "author": "Rick-yi",
