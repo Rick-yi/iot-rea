@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.13.0] - 2026-11-19
+
+### Added
+
+- `publish-telemetry` CLI: minimal MQTT 3.1.1 publisher (CONNECT, PUBLISH QoS
+  0/1, PUBACK, DISCONNECT) with dry-run by default, topic templates, rate
+  limiting and env-only credentials.
+- `--payload values` for platforms that expect `{ts, values}`.
+
+### Changed
+
+- Publishing is deliberately CLI-only; it is not exposed as an MCP tool.
+
 ## [0.12.0] - 2026-11-19
 
 ### Added

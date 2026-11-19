@@ -21,6 +21,8 @@ export * from './app/inspectCapture.js';
 export * from './app/diffFrames.js';
 export * from './app/exportKsy.js';
 export * from './app/exportTelemetry.js';
+export * from './app/publishTelemetry.js';
+export * from './integrations/mqttClient.js';
 export * from './domain/labels.js';
 export * from './domain/ble.js';
 export * from './providers/ble.js';

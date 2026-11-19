@@ -142,6 +142,30 @@ node dist/cli.js export-telemetry observations.json \
 
 之后只需一个发布器按平台规范把 jsonl 发出去（如 `devices/{deviceId}/telemetry`、ThingsBoard 的 `v1/devices/me/telemetry`）。
 
+## 发布到 MQTT（显式 opt-in）
+
+导出后的 jsonl 可以用内置的最小 MQTT 3.1.1 客户端发出去，**默认 dry-run**，只有加 `--send` 才联网：
+
+```bash
+# 先看会发什么
+node dist/cli.js publish-telemetry export/telemetry.jsonl \
+  --topic 'devices/{deviceId}/telemetry'
+
+# 确认后真正发送
+IOT_REA_MQTT_USERNAME=... IOT_REA_MQTT_PASSWORD=... \
+node dist/cli.js publish-telemetry export/telemetry.jsonl \
+  --topic 'devices/{deviceId}/telemetry' \
+  --broker mqtt://broker.example:1883 --qos 1 --send
+```
+
+- 凭据只从 `IOT_REA_MQTT_USERNAME` / `IOT_REA_MQTT_PASSWORD` 读取，不出现在 argv；
+- `--payload record`（默认，完整记录）或 `--payload values`（`{"ts","values"}`，适配 ThingsBoard 等）；
+- 主题模板支持 `{deviceId}`、`{schemaVersion}`、`{frameId}`、`{quality}`、`{ts}`；
+- `mqtts://` 默认校验证书，`--insecure` 仅供实验环境；
+- 没有重试/重连/保留会话：这是短生命周期桥接，失败就重跑；`--rate-ms`、`--limit` 用于限速与试发。
+
+发布能力只放在 CLI，不暴露为 MCP 工具——避免 agent 在不明确授权的情况下对外发送数据。
+
 ## 会话迁移图（实验性）
 
 把一串帧变成"谁跟在谁后面"的观察图：
