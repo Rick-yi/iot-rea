@@ -5,9 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,50 +22,74 @@ jobs:
       - name: apt-get update
         run: sudo apt-get update
       - name: Install tshark
-        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+        run: sudo apt-get install -y --no-install-recommends tshark
       - name: tshark version
         run: tshark --version
       - name: Install sigrok-cli
-        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y sigrok-cli
+        run: sudo apt-get install -y --no-install-recommends sigrok-cli
       - name: sigrok version
         run: sigrok-cli --version
       - name: sigrok uart decoder
         run: sigrok-cli -L | grep -q uart
+      - name: Cache Kaitai compiler
+        id: kaitai-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kst
+          key: kaitai-compiler-0.11-${{ runner.os }}
       - name: Install Kaitai compiler
+        if: steps.kaitai-cache.outputs.cache-hit != 'true'
         run: |
           if ! java -version >/dev/null 2>&1; then
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-jre-headless
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless
           fi
           curl -fsSL --retry 2 "https://github.com/kaitai-io/kaitai_struct_compiler/releases/download/0.11/kaitai-struct-compiler-0.11.zip" -o /tmp/kst.zip
           unzip -q /tmp/kst.zip -d /tmp/kst
+      - name: Kaitai version
+        run: |
           chmod +x /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler
           /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler --version
+      - name: Cache captures
+        id: capture-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/captures
+            /tmp/att
+            /tmp/btatt_coverage.pcap
+          key: captures-v1-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
       - name: Fetch real captures
+        if: steps.capture-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p /tmp/captures
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/Cincosavvy/MODBUS-WATCH/main/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap             || curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/Cincosavvy/MODBUS-WATCH/contents/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/l-laura/MQTTset-reduced/main/benign.pcap" -o /tmp/captures/mqtt-benign.pcap             || curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/Cincosavvy/MODBUS-WATCH/main/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/l-laura/MQTTset-reduced/main/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
           test -s /tmp/captures/modbus-plant.pcap
           test -s /tmp/captures/mqtt-benign.pcap
       - name: Fetch real ATT logs
+        if: steps.capture-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p /tmp/att
           curl -fsSL --retry 3 "https://github.com/user-attachments/files/34539895/btsnoop_hci.log" -o /tmp/att/bms.log || true
           curl -fsSL --retry 3 "https://github.com/user-attachments/files/34419725/btsnoop_hci.log" -o /tmp/att/baseus.log || true
-          files=""
-          if [ -s /tmp/att/bms.log ]; then files="/tmp/att/bms.log"; fi
-          if [ -s /tmp/att/baseus.log ]; then files="${files}${files:+,}/tmp/att/baseus.log"; fi
-          if [ -n "$files" ]; then echo "IOT_REA_ATT_LOGS=$files" >> "$GITHUB_ENV"; fi
       - name: Fetch ATT corpus
+        if: steps.capture-cache.outputs.cache-hit != 'true'
         run: |
           curl -fsSL --retry 3 "https://raw.githubusercontent.com/wireshark/wireshark/master/test/captures/btatt_coverage.pcap.gz" -o /tmp/btatt_coverage.pcap.gz
           gunzip -f /tmp/btatt_coverage.pcap.gz
           test -s /tmp/btatt_coverage.pcap
+      - name: Export ATT log paths
+        run: |
+          files=""
+          for file in /tmp/att/bms.log /tmp/att/baseus.log; do
+            if [ -s "$file" ]; then files="${files}${files:+,}$file"; fi
+          done
+          if [ -n "$files" ]; then echo "IOT_REA_ATT_LOGS=$files" >> "$GITHUB_ENV"; fi
       - run: npm run typecheck
       - name: npm test
         run: |
           set -o pipefail
-          npm test 2>&1 | tee /tmp/test.log
+          npm test -- --coverage 2>&1 | tee /tmp/test.log
         env:
           IOT_REA_REQUIRE_TOOLS: "1"
           IOT_REA_BLE_CORPUS: /tmp/btatt_coverage.pcap
@@ -79,3 +107,21 @@ jobs:
         run: |
           node dist/cli.js doctor
           node dist/cli.js help
+
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

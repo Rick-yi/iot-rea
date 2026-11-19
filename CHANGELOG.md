@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.18.1] - 2026-11-19
+
+### Changed
+
+- CI caches the Kaitai compiler and downloaded corpora, installs apt packages
+  with `--no-install-recommends`, and runs coverage with enforced thresholds.
+- Added a Windows/macOS unit-test matrix, Dependabot configuration and a
+  CodeQL workflow.
+
 ## [0.18.0] - 2026-11-19
 
 ### Added
