@@ -42,7 +42,9 @@ interface LayoutField {
   endOffset?: number;
 }
 
-const SCALAR_TYPES: Record<Exclude<FieldType, 'ascii' | 'bcd2'>, (endian: 'be' | 'le' | null) => string> = {
+const KAITAI_TYPES = new Set<FieldType>(['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'f32', 'bcd2', 'ascii']);
+
+const SCALAR_TYPES: Partial<Record<Exclude<FieldType, 'ascii' | 'bcd2'>, (endian: 'be' | 'le' | null) => string>> = {
   u8: () => 'u1',
   i8: () => 's1',
   u16: (endian) => (endian === 'le' ? 'u2le' : 'u2be'),
@@ -59,8 +61,14 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
   const typeLines: string[] = [];
 
   // Stronger hypotheses win an overlap: higher confidence, then wider field.
+  for (const field of draft.fields) {
+    if (!KAITAI_TYPES.has(field.type)) {
+      dropped.push(`${field.variable} uses ${field.type}; bit-level fields are not emitted in v1 Kaitai drafts`);
+    }
+  }
+
   const candidates = [...draft.fields]
-    .filter((field) => field.confidence >= 0.5)
+    .filter((field) => field.confidence >= 0.5 && KAITAI_TYPES.has(field.type))
     .sort((a, b) => a.offset - b.offset || b.confidence - a.confidence || b.width - a.width);
 
   for (const field of candidates) {
@@ -237,11 +245,23 @@ export function toLayout(field: FieldCandidate): LayoutField {
     };
   }
 
+  const scalar = SCALAR_TYPES[field.type];
+  if (scalar === undefined) {
+    return {
+      offset: field.offset,
+      width: field.width,
+      id,
+      size: field.width,
+      doc: `${base}; ${variable}; bit-level type ${field.type} kept as bytes`,
+      priority: field.confidence,
+    };
+  }
+
   return {
     offset: field.offset,
     width: field.width,
     id,
-    type: SCALAR_TYPES[field.type](field.endian),
+    type: scalar(field.endian),
     doc: `${base}; ${variable}${field.transform?.kind === 'scaled' ? `; scaled by ${field.transform.factor}` : ''}`,
     priority: field.confidence,
   };
@@ -316,7 +336,7 @@ function singleLine(text: string): string {
 /** Render `types: record:` lines for per-record fields, with explicit gaps. */
 function renderRecordType(fields: FieldCandidate[], stride: number): string[] {
   const placed = fields
-    .filter((field) => field.confidence >= 0.5 && field.offset + field.width <= stride)
+    .filter((field) => field.confidence >= 0.5 && KAITAI_TYPES.has(field.type) && field.offset + field.width <= stride)
     .sort((a, b) => a.offset - b.offset || b.width - a.width);
   const lines: string[] = ['  record:', '    seq:'];
   let cursor = 0;

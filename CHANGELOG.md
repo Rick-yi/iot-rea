@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.18.0] - 2026-11-19
+
+### Added
+
+- Bit-level field inference: 12-bit values (BE/LE packing), low/high nibbles,
+  and single-bit flags for boolean labels.
+- Packed candidates require evidence that the enclosing byte/word differs;
+  otherwise the byte-aligned type wins.
+- Kaitai drafts skip bit-level fields and record the omission instead of
+  emitting a wrong byte type.
+
 ## [0.17.0] - 2026-11-19
 
 ### Added

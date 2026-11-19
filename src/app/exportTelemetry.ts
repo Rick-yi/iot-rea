@@ -160,7 +160,7 @@ function decodeTelemetryValue(field: FieldCandidate, bytes: Buffer): number | st
   if (field.type === 'ascii') {
     return bytes.subarray(field.offset, field.offset + field.width).toString('ascii');
   }
-  const raw = decodeNumber(field.type, field.endian ?? null, bytes, field.offset, field.width);
+  const raw = decodeNumber(field.type, field.endian ?? null, bytes, field.offset, field.width, field.bitOffset);
   if (raw === null) return null;
   return field.transform?.kind === 'scaled' ? raw / (field.transform.factor ?? 1) : raw;
 }
