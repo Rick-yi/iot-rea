@@ -44,7 +44,7 @@ claude mcp add iot-rea -- node /absolute/path/to/iot-rea/dist/cli.js mcp
 |---|---|---|
 | `doctor` | 无 | Node 支持情况、tshark / sigrok-cli 可用性与版本 |
 | `inspect_capture` | `path`、`fields[]`、`display_filter`、`decode_as[]`、`packet_limit`、分页参数 | 行、`output_window`、Evidence |
-| `diff_frames` | `path`（观测 JSON）、`min_samples` | 变异区段、字段候选、派生字段、校验候选、未知项 |
+| `diff_frames` | `path`（观测 JSON）、`min_samples` | 变异区段、字段候选、派生字段、计数字段、校验候选、未知项 |
 | `inspect_firmware` | `path`、可选 `extract_to` | 容器清单与区域，或提取结果 |
 | `decode_signals` | `path`、`decoders[]`、`input_format`、`annotations[]` | 解码文本行 + 分页窗口 |
 | `read_serial` | `path` | 归一化帧、跳过行数 |

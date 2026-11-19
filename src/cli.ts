@@ -260,6 +260,13 @@ async function main(): Promise<number> {
               `(${derived.matched}/${derived.total} matched)`,
           );
         }
+        for (const record of result.records) {
+          const endian = record.endian === null ? '' : ` ${record.endian}`;
+          console.log(
+            `records count ${record.type}${endian} @0x${record.offset.toString(16)}: ` +
+              `${record.stride}-byte records, ${record.trailerBytes}-byte trailer`,
+          );
+        }
         for (const checksum of result.checksums) {
           console.log(
             `checksum ${checksum.algorithm} @0x${checksum.position.toString(16)} ${checksum.endian} confidence ${checksum.confidence.toFixed(2)}`,

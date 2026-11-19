@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { Evidence, SourceEvidence } from '../contracts/evidence.js';
 import type { ChecksumCandidate } from '../domain/checksum.js';
 import type { DerivedField } from '../domain/derived.js';
+import type { CountField } from '../domain/records.js';
 import type { DiffReport, Observation } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
 import { VERIFIERS } from '../domain/verify.js';
@@ -44,6 +45,7 @@ export interface EvidencePack {
   };
   checksums: ChecksumCandidate[];
   derived: DerivedField[];
+  records: CountField[];
   unknowns: string[];
   frames: PackFrame[];
   framesOmitted: number;
@@ -84,6 +86,7 @@ export async function buildEvidencePack(input: EvidencePackInput): Promise<Advis
     differential: { regions: draft.differential.regions, unknowns: draft.differential.unknowns },
     checksums: draft.checksums,
     derived: draft.derived,
+    records: draft.records,
     unknowns: draft.unknowns,
     frames,
     framesOmitted: Math.max(0, loaded.observations.length - frames.length),
