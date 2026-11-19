@@ -17,6 +17,8 @@ export const inspectCaptureInputSchema = z.object({
   matchOffset: z.number().int().nonnegative().optional(),
   matchLimit: z.number().int().positive().nullable().optional(),
   twoPass: z.boolean().optional(),
+  /** Raise the producer output budget for large result sets (bytes). */
+  maxOutputBytes: z.number().int().positive().optional(),
 });
 
 export type InspectCaptureInput = z.infer<typeof inspectCaptureInputSchema>;
@@ -41,6 +43,7 @@ export async function inspectCapture(input: InspectCaptureInput): Promise<Inspec
     matchOffset: parsed.matchOffset,
     matchLimit: parsed.matchLimit,
     twoPass: parsed.twoPass,
+    maxOutputBytes: parsed.maxOutputBytes,
   });
 
   return {

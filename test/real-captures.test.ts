@@ -47,6 +47,8 @@ describe.skipIf(!present(mqttPath))('real MQTT capture', () => {
       fields: ['frame.number', 'mqtt.msgtype', 'mqtt.topic'],
       displayFilter: 'mqtt',
       matchLimit: null,
+      // ~10k packets of pretty-printed TShark JSON exceed the 4 MiB default.
+      maxOutputBytes: 16 * 1024 * 1024,
     });
 
     expect(result.window.total).toBeGreaterThan(100);
