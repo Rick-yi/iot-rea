@@ -63,7 +63,7 @@ jobs:
         if: failure()
         run: |
           if [ -f /tmp/test.log ]; then
-            grep -n -E 'FAIL|AssertionError|Error:|×|Test Files|Tests ' /tmp/test.log | tail -40 | tr -d '\r' | while IFS= read -r line; do echo "::error::$line"; done
+            grep -n -E 'FAIL|AssertionError|Error|error|expected|invalid|not valid|tshark|×|Test Files|Tests ' /tmp/test.log | tail -60 | tr -d '\r' | while IFS= read -r line; do echo "::error::$line"; done
           fi
       - run: npm run build
       - name: CLI smoke test
