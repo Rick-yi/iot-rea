@@ -43,6 +43,15 @@ jobs:
           curl -fsSL --retry 3 "https://raw.githubusercontent.com/l-laura/MQTTset-reduced/main/benign.pcap" -o /tmp/captures/mqtt-benign.pcap             || curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
           test -s /tmp/captures/modbus-plant.pcap
           test -s /tmp/captures/mqtt-benign.pcap
+      - name: Fetch real ATT logs
+        run: |
+          mkdir -p /tmp/att
+          curl -fsSL --retry 3 "https://github.com/user-attachments/files/34539895/btsnoop_hci.log" -o /tmp/att/bms.log || true
+          curl -fsSL --retry 3 "https://github.com/user-attachments/files/34419725/btsnoop_hci.log" -o /tmp/att/baseus.log || true
+          files=""
+          if [ -s /tmp/att/bms.log ]; then files="/tmp/att/bms.log"; fi
+          if [ -s /tmp/att/baseus.log ]; then files="${files}${files:+,}/tmp/att/baseus.log"; fi
+          if [ -n "$files" ]; then echo "IOT_REA_ATT_LOGS=$files" >> "$GITHUB_ENV"; fi
       - name: Fetch ATT corpus
         run: |
           curl -fsSL --retry 3 "https://raw.githubusercontent.com/wireshark/wireshark/master/test/captures/btatt_coverage.pcap.gz" -o /tmp/btatt_coverage.pcap.gz

@@ -46,6 +46,7 @@ const OPCODES: Record<number, AttOpcodeInfo> = {
   0x20: { name: 'read-multiple-variable-request', direction: 'tx', hasHandle: true },
   0x21: { name: 'read-multiple-variable-response', direction: 'rx', hasHandle: false },
   0x23: { name: 'write-command', direction: 'tx', hasHandle: true },
+  0x52: { name: 'write-command', direction: 'tx', hasHandle: true },
   0xd2: { name: 'signed-write-command', direction: 'tx', hasHandle: true },
 };
 

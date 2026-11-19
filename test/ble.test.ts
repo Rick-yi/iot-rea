@@ -32,6 +32,7 @@ describe('ATT identifiers', () => {
 describe('bleDirection', () => {
   it('falls back to ATT opcode semantics', () => {
     expect(bleDirection({ opcode: '0x12' })).toBe('tx');
+    expect(bleDirection({ opcode: '0x52' })).toBe('tx');
     expect(bleDirection({ opcode: '0x1b' })).toBe('rx');
     expect(bleDirection({ opcode: '0x05' })).toBe('rx');
     expect(bleDirection({ opcode: '0x99' })).toBe('unknown');

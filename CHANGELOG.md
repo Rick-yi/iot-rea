@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.15.0] - 2026-11-19
+
+### Added
+
+- Real-device ATT logs from public issue attachments (BMS and Baseus devices)
+  are fetched by CI and parsed by a minimal btsnoop reader; provider tests run
+  when TShark is present. Files are never committed.
+- ATT opcode 0x52 (Write Command) now maps to direction `tx`.
+
 ## [0.14.0] - 2026-11-19
 
 ### Added
