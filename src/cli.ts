@@ -267,6 +267,13 @@ async function main(): Promise<number> {
               `${record.stride}-byte records, ${record.trailerBytes}-byte trailer`,
           );
         }
+        for (const field of result.recordLayout?.fields ?? []) {
+          const endian = field.endian === null ? '' : ` ${field.endian}`;
+          console.log(
+            `record field ${field.variable}: ${field.type}${endian} @+0x${field.offset.toString(16)} ` +
+              `width ${field.width} confidence ${field.confidence.toFixed(2)}`,
+          );
+        }
         for (const checksum of result.checksums) {
           console.log(
             `checksum ${checksum.algorithm} @0x${checksum.position.toString(16)} ${checksum.endian} confidence ${checksum.confidence.toFixed(2)}`,

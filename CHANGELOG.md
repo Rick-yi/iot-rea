@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.17.0] - 2026-11-19
+
+### Added
+
+- Array labels (`vars: { reading: [10, 20] }`): frames are split into
+  per-record observations and field types are inferred inside the record.
+- Kaitai drafts emit a nested `record` type with `repeat-expr`; the generated
+  schema compiles with kaitai-struct-compiler.
+- Record layout is reported in diffs, CLI output and evidence packs.
+
 ## [0.16.0] - 2026-11-19
 
 ### Added

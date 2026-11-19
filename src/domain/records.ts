@@ -7,6 +7,7 @@
  * not evidence. This is structural: it does not claim the records' semantics.
  */
 import type { Observation } from './diff.js';
+import type { FieldCandidate } from './inference.js';
 
 export interface CountField {
   offset: number;
@@ -104,6 +105,69 @@ export function detectCountFields(
   }
 
   return [...best.values()].sort((a, b) => a.offset - b.offset || a.width - b.width);
+}
+
+export interface RecordLayout {
+  stride: number;
+  sampleCount: number;
+  /** Fields inferred inside one record, offsets relative to the record start. */
+  fields: FieldCandidate[];
+  unknowns: string[];
+}
+
+export interface RecordSplit {
+  samples: Observation[];
+  unknowns: string[];
+  hasArrayLabels: boolean;
+}
+
+/**
+ * Split frames into per-record observations using array-valued labels.
+ * Scalar labels describe the frame, not individual records, and are excluded
+ * from record-level inference to avoid false matches.
+ */
+export function splitRecordObservations(observations: Observation[], count: CountField): RecordSplit {
+  const samples: Observation[] = [];
+  const unknowns: string[] = [];
+  let hasArrayLabels = false;
+  let shortLabels = 0;
+
+  for (const observation of observations) {
+    const value = decode(observation.bytes, count.offset, {
+      type: count.type,
+      width: count.width,
+      endian: count.endian,
+    });
+    if (value === null || value < 1) continue;
+    const recordsStart = count.offset + count.width;
+    if (recordsStart + value * count.stride > observation.bytes.length) {
+      unknowns.push(`frame "${observation.frameId}" declares more records than its bytes contain`);
+      continue;
+    }
+
+    for (let index = 0; index < value; index += 1) {
+      const vars: Observation['vars'] = {};
+      for (const [name, label] of Object.entries(observation.vars)) {
+        if (!Array.isArray(label)) continue;
+        hasArrayLabels = true;
+        if (index < label.length) vars[name] = label[index] as Observation['vars'][string];
+      }
+      if (Object.values(observation.vars).some((label) => Array.isArray(label) && label.length < value)) {
+        shortLabels += 1;
+      }
+      samples.push({
+        frameId: `${observation.frameId}#${index + 1}`,
+        vars,
+        bytes: observation.bytes.subarray(
+          recordsStart + index * count.stride,
+          recordsStart + (index + 1) * count.stride,
+        ),
+      });
+    }
+  }
+
+  if (shortLabels > 0) unknowns.push(`${shortLabels} record(s) had no array label for their index`);
+  return { samples, unknowns, hasArrayLabels };
 }
 
 function decode(

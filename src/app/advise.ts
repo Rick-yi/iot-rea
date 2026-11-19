@@ -9,8 +9,8 @@ import { z } from 'zod';
 import type { Evidence, SourceEvidence } from '../contracts/evidence.js';
 import type { ChecksumCandidate } from '../domain/checksum.js';
 import type { DerivedField } from '../domain/derived.js';
-import type { CountField } from '../domain/records.js';
-import type { DiffReport, Observation } from '../domain/diff.js';
+import type { CountField, RecordLayout } from '../domain/records.js';
+import type { DiffReport, Observation, VarValue } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
 import { VERIFIERS } from '../domain/verify.js';
 import { diffFrames, loadObservations } from './diffFrames.js';
@@ -24,7 +24,7 @@ export type EvidencePackInput = z.infer<typeof evidencePackInputSchema>;
 
 export interface PackFrame {
   frameId: string;
-  vars: Record<string, number | string | boolean>;
+  vars: Record<string, VarValue>;
   hex: string;
 }
 
@@ -46,6 +46,7 @@ export interface EvidencePack {
   checksums: ChecksumCandidate[];
   derived: DerivedField[];
   records: CountField[];
+  recordLayout: RecordLayout | null;
   unknowns: string[];
   frames: PackFrame[];
   framesOmitted: number;
@@ -87,6 +88,7 @@ export async function buildEvidencePack(input: EvidencePackInput): Promise<Advis
     checksums: draft.checksums,
     derived: draft.derived,
     records: draft.records,
+    recordLayout: draft.recordLayout ?? null,
     unknowns: draft.unknowns,
     frames,
     framesOmitted: Math.max(0, loaded.observations.length - frames.length),

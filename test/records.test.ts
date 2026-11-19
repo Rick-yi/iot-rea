@@ -67,6 +67,57 @@ describe('count fields', () => {
   });
 });
 
+describe('per-record layout', () => {
+  function arrayLabelFrames(): { observations: Observation[]; values: number[][] } {
+    const values = [
+      [10, 20],
+      [11, 21, 31],
+      [12, 22],
+    ];
+    const observations = values.map((readings, index) => {
+      const bytes = Buffer.alloc(3 + readings.length * 4);
+      bytes.writeUInt8(0xaa, 0);
+      bytes.writeUInt8(0xbb, 1);
+      bytes.writeUInt8(readings.length, 2);
+      readings.forEach((reading, record) => {
+        const start = 3 + record * 4;
+        bytes.writeUInt16BE(reading, start);
+        bytes.writeUInt8(0x00, start + 2);
+        bytes.writeUInt8(0x01, start + 3);
+      });
+      return { frameId: `f${index + 1}`, vars: { reading: readings }, bytes };
+    });
+    return { observations, values };
+  }
+
+  it('infers fields inside a record from array labels', async () => {
+    const { observations } = arrayLabelFrames();
+    const draft = await draftFor(observations);
+
+    expect(draft.recordLayout?.stride).toBe(4);
+    expect(draft.recordLayout?.sampleCount).toBe(7);
+    const field = draft.recordLayout?.fields.find((candidate) => candidate.variable === 'reading');
+    expect(field).toMatchObject({ offset: 0, width: 2, type: 'u16', endian: 'be', confidence: 1 });
+    expect(draft.unknowns.join(' ')).toContain('record layout');
+  });
+
+  it('emits a nested record type in Kaitai', async () => {
+    const { observations } = arrayLabelFrames();
+    const draft = await draftFor(observations);
+    const rendered = renderKaitai(draft, { id: 'record_layout' });
+
+    expect(rendered.text).toContain('types:\n  record:\n    seq:');
+    expect(rendered.text).toContain('- id: reading\n        type: u2be');
+    expect(rendered.text).toContain('- id: records_2\n    type: record');
+    expect(rendered.text).toContain('repeat-expr: record_count_2');
+  });
+
+  it('does not infer record fields from scalar labels', async () => {
+    const draft = await draftFor(recordFrames([1, 2, 3, 4]));
+    expect(draft.recordLayout).toBeUndefined();
+  });
+});
+
 describe('records in the schema draft', () => {
   it('reports the count field and records in the draft', async () => {
     const draft = await draftFor(recordFrames([1, 2, 3, 4]));
