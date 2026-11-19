@@ -9,6 +9,7 @@ import { buildObservations } from './app/buildObservations.js';
 import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
 import { exportKsy } from './app/exportKsy.js';
+import { exportTelemetry } from './app/exportTelemetry.js';
 import { inspectCapture } from './app/inspectCapture.js';
 import { inferTransitions } from './app/inferTransitions.js';
 import { inspectFirmware } from './app/inspectFirmware.js';
@@ -271,6 +272,36 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'export-telemetry': {
+      requireTarget(target, 'export-telemetry');
+      const deviceId = flag(args, 'device-id');
+      const outDir = flag(args, 'out');
+      if (deviceId === undefined) throw new IotReaError('invalid_request', '--device-id <id> is required');
+      if (outDir === undefined) throw new IotReaError('invalid_request', '--out <dir> is required');
+
+      const result = await exportTelemetry({
+        path: target,
+        deviceId,
+        outDir,
+        minConfidence: number(flag(args, 'min-confidence')),
+        tsBase: number(flag(args, 'ts-base')),
+        tsStep: number(flag(args, 'ts-step')),
+        schemaVersion: flag(args, 'schema-version'),
+      });
+
+      if (json) {
+        printJson(result);
+        return 0;
+      }
+      console.log(`mapping  ${result.mappingPath} (${result.mapping.fields.length} field(s))`);
+      console.log(`telemetry ${result.telemetryPath} (${result.records.length} record(s))`);
+      for (const record of result.records.slice(0, 3)) {
+        console.log(`  ${record.frameId} ts=${record.ts} quality=${record.quality} ${JSON.stringify(record.values)}`);
+      }
+      printLimitations(result.evidence.limitations);
+      return 0;
+    }
+
     case 'infer-transitions': {
       requireTarget(target, 'infer-transitions');
       const result = await inferTransitions({
@@ -446,6 +477,9 @@ usage:
   iot-rea inspect-firmware <artifact> [--extract <dir>] [--json]
   iot-rea diff-frames <observations.json> [--min-samples n]
                         [--ksy <out.ksy>|--ksy -] [--id name] [--json]
+  iot-rea export-telemetry <observations.json> --device-id <id> --out <dir>
+                        [--min-confidence n] [--ts-base ms] [--ts-step ms]
+                        [--schema-version s] [--json]
   iot-rea infer-transitions <frames.json> [--signature-bytes n]
                         [--channel name] [--mermaid <out.md>|--mermaid -] [--json]
   iot-rea evidence-pack <observations.json> [--max-frames n]

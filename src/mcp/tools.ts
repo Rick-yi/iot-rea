@@ -12,6 +12,7 @@ import { buildObservations } from '../app/buildObservations.js';
 import { doctor } from '../app/doctor.js';
 import { diffFrames } from '../app/diffFrames.js';
 import { renderKaitai } from '../app/exportKsy.js';
+import { exportTelemetry } from '../app/exportTelemetry.js';
 import { inferTransitions } from '../app/inferTransitions.js';
 import { verifyHypotheses } from '../app/verifyHypotheses.js';
 import { hypothesisSchema } from '../contracts/hypotheses.js';
@@ -275,6 +276,32 @@ export const MCP_TOOLS: McpTool[] = [
         signatureBytes: input.signature_bytes,
         channel: input.channel,
       }),
+  ),
+
+  define(
+    'export_telemetry',
+    'Export normalized telemetry and a field contract',
+    'Decode labelled observations with the inferred fields and write mapping.json plus telemetry.jsonl to a directory. Checksum and derived length fields are never exported as telemetry values. Nothing is published or sent to a network.',
+    {
+      path: pathField.describe('JSON observations: [{frameId, vars, hex}] or {"observations": [...]}'),
+      device_id: z.string().min(1),
+      out_dir: z.string().min(1),
+      min_confidence: z.number().min(0).max(1).optional(),
+      ts_base: z.number().int().nonnegative().optional(),
+      ts_step: z.number().int().positive().optional(),
+      schema_version: z.string().min(1).optional(),
+    },
+    async (input) =>
+      exportTelemetry({
+        path: input.path,
+        deviceId: input.device_id,
+        outDir: input.out_dir,
+        minConfidence: input.min_confidence,
+        tsBase: input.ts_base,
+        tsStep: input.ts_step,
+        schemaVersion: input.schema_version,
+      }),
+    { readOnly: false },
   ),
 
   define(

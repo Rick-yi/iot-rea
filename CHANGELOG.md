@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.12.0] - 2026-11-19
+
+### Added
+
+- `export-telemetry` CLI and `export_telemetry` MCP tool: decode observations
+  with the inferred fields into `mapping.json` (field contract) and
+  `telemetry.jsonl` (one normalized record per frame).
+- Checksum and derived length fields are never exported as telemetry values.
+- Records carry `quality: good | partial` when a labelled variable could not
+  be decoded; nothing is published or sent to a network.
+
 ## [0.11.0] - 2026-11-18
 
 ### Added

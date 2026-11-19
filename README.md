@@ -121,6 +121,27 @@ seq:
     doc: "offset 0x4, width 4, confidence 1.00; variable temperature"
 ```
 
+## 导出遥测（对接平台）
+
+把分析结果变成平台可消费的**字段契约 + 标准化遥测**，不做发布、不联网：
+
+```bash
+node dist/cli.js export-telemetry observations.json \
+  --device-id sensor-01 \
+  --out ./export \
+  --min-confidence 0.9 \
+  --ts-base 1763000000000 --ts-step 1000
+```
+
+生成两个文件：
+
+- `mapping.json`：字段契约（名称、偏移、宽度、类型、字节序、置信度、缩放）+ 校验/派生字段 + 未知项 + 源证据。
+- `telemetry.jsonl`：每帧一行 `{"deviceId","ts","schemaVersion","frameId","values","quality"}`。
+
+校验字段与派生长度字段**永远不会**进入遥测；某个标签变量未能解码时该行 `quality` 为 `partial`，而不是悄悄丢值或编造。时间戳是 `ts-base + 序号 × ts-step` 合成的，接入平台前请替换为真实时间戳。
+
+之后只需一个发布器按平台规范把 jsonl 发出去（如 `devices/{deviceId}/telemetry`、ThingsBoard 的 `v1/devices/me/telemetry`）。
+
 ## 会话迁移图（实验性）
 
 把一串帧变成"谁跟在谁后面"的观察图：
