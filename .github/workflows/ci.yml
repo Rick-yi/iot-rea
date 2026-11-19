@@ -33,7 +33,7 @@ jobs:
         run: sigrok-cli -L | grep -q uart
       - name: Cache Kaitai compiler
         id: kaitai-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /tmp/kst
           key: kaitai-compiler-0.11-${{ runner.os }}
@@ -51,7 +51,7 @@ jobs:
           /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler --version
       - name: Cache captures
         id: capture-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             /tmp/captures
