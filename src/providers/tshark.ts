@@ -115,11 +115,12 @@ export async function inspectPacketCapture(request: TsharkRequest): Promise<Tsha
     });
 
     if (outcome.exitCode !== 0) {
-      throw new IotReaError('invalid_request', `tshark exited with ${outcome.exitCode ?? 'signal'}`, {
-        exitCode: outcome.exitCode,
-        signal: outcome.signal,
-        stderr: outcome.stderr,
-      });
+      const excerpt = outcome.stderr.trim().split(/\r?\n/)[0] ?? '';
+      throw new IotReaError(
+        'invalid_request',
+        `tshark exited with ${outcome.exitCode ?? 'signal'}${excerpt === '' ? '' : `: ${excerpt}`}`,
+        { exitCode: outcome.exitCode, signal: outcome.signal, stderr: outcome.stderr },
+      );
     }
 
     const rows = parseTsharkJson(outcome.stdout, fields);
