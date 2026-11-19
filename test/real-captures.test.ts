@@ -24,7 +24,7 @@ describe.skipIf(!present(modbusPath))('real Modbus capture', () => {
   it('extracts function codes and unit ids through TShark', async () => {
     const result = await inspectCapture({
       path: modbusPath as string,
-      fields: ['frame.number', 'modbus.func_code', 'modbus.unit_id'],
+      fields: ['frame.number', 'modbus.func_code', 'mbtcp.unit_id'],
       displayFilter: 'modbus',
       matchLimit: null,
     });
