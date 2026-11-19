@@ -39,8 +39,8 @@ jobs:
       - name: Fetch real captures
         run: |
           mkdir -p /tmp/captures
-          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/Cincosavvy/MODBUS-WATCH/contents/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap
-          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/Cincosavvy/MODBUS-WATCH/main/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap             || curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/Cincosavvy/MODBUS-WATCH/contents/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/l-laura/MQTTset-reduced/main/benign.pcap" -o /tmp/captures/mqtt-benign.pcap             || curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
           test -s /tmp/captures/modbus-plant.pcap
           test -s /tmp/captures/mqtt-benign.pcap
       - name: Fetch ATT corpus
