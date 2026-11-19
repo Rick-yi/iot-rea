@@ -32,33 +32,39 @@ jobs:
           if ! java -version >/dev/null 2>&1; then
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-jre-headless
           fi
-          curl -fsSL --retry 2             https://github.com/kaitai-io/kaitai_struct_compiler/releases/download/0.11/kaitai-struct-compiler-0.11.zip             -o /tmp/kst.zip
+          curl -fsSL --retry 2 "https://github.com/kaitai-io/kaitai_struct_compiler/releases/download/0.11/kaitai-struct-compiler-0.11.zip" -o /tmp/kst.zip
           unzip -q /tmp/kst.zip -d /tmp/kst
           chmod +x /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler
           /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler --version
       - name: Fetch real captures
         run: |
           mkdir -p /tmp/captures
-          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw'             https://api.github.com/repos/Cincosavvy/MODBUS-WATCH/contents/samples/plant.pcap             -o /tmp/captures/modbus-plant.pcap
-          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw'             https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap             -o /tmp/captures/mqtt-benign.pcap
+          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/Cincosavvy/MODBUS-WATCH/contents/samples/plant.pcap" -o /tmp/captures/modbus-plant.pcap
+          curl -fsSL --retry 3 -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/l-laura/MQTTset-reduced/contents/benign.pcap" -o /tmp/captures/mqtt-benign.pcap
           test -s /tmp/captures/modbus-plant.pcap
           test -s /tmp/captures/mqtt-benign.pcap
       - name: Fetch ATT corpus
         run: |
-          for attempt in 1 2 3; do
-            curl -fsSL --retry 2               https://raw.githubusercontent.com/wireshark/wireshark/master/test/captures/btatt_coverage.pcap.gz               -o /tmp/btatt_coverage.pcap.gz && gunzip -f /tmp/btatt_coverage.pcap.gz && break
-            sleep 3
-          done
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/wireshark/wireshark/master/test/captures/btatt_coverage.pcap.gz" -o /tmp/btatt_coverage.pcap.gz
+          gunzip -f /tmp/btatt_coverage.pcap.gz
           test -s /tmp/btatt_coverage.pcap
       - run: npm run typecheck
-      - run: npm test
+      - name: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log
         env:
-          # Integration tests are not allowed to skip silently in CI.
           IOT_REA_REQUIRE_TOOLS: "1"
           IOT_REA_BLE_CORPUS: /tmp/btatt_coverage.pcap
           IOT_REA_KAITAI: /tmp/kst/kaitai-struct-compiler-0.11/bin/kaitai-struct-compiler
           IOT_REA_CAPTURE_MODBUS: /tmp/captures/modbus-plant.pcap
           IOT_REA_CAPTURE_MQTT: /tmp/captures/mqtt-benign.pcap
+      - name: Surface test failures
+        if: failure()
+        run: |
+          if [ -f /tmp/test.log ]; then
+            tail -n 30 /tmp/test.log | tr -d '\r' | while IFS= read -r line; do echo "::error::$line"; done
+          fi
       - run: npm run build
       - name: CLI smoke test
         run: |
