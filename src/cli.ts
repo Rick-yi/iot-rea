@@ -10,6 +10,7 @@ import { doctor } from './app/doctor.js';
 import { diffFrames } from './app/diffFrames.js';
 import { exportKsy } from './app/exportKsy.js';
 import { exportTelemetry } from './app/exportTelemetry.js';
+import { publishTelemetry } from './app/publishTelemetry.js';
 import { inspectCapture } from './app/inspectCapture.js';
 import { inferTransitions } from './app/inferTransitions.js';
 import { inspectFirmware } from './app/inspectFirmware.js';
@@ -302,6 +303,47 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'publish-telemetry': {
+      requireTarget(target, 'publish-telemetry');
+      const topic = flag(args, 'topic');
+      if (topic === undefined) throw new IotReaError('invalid_request', '--topic <template> is required');
+
+      const qosFlag = flag(args, 'qos');
+      if (qosFlag !== undefined && qosFlag !== '0' && qosFlag !== '1') {
+        throw new IotReaError('invalid_request', '--qos must be 0 or 1');
+      }
+
+      const result = await publishTelemetry({
+        path: target,
+        topic,
+        broker: flag(args, 'broker') ?? process.env.IOT_REA_MQTT_BROKER,
+        qos: qosFlag === undefined ? undefined : (Number(qosFlag) as 0 | 1),
+        rateMs: number(flag(args, 'rate-ms')),
+        limit: number(flag(args, 'limit')),
+        payloadMode: flag(args, 'payload') as 'record' | 'values' | undefined,
+        send: has(args, 'send'),
+        clientId: flag(args, 'client-id'),
+        username: process.env.IOT_REA_MQTT_USERNAME,
+        password: process.env.IOT_REA_MQTT_PASSWORD,
+        rejectUnauthorized: has(args, 'insecure') ? false : undefined,
+      });
+
+      if (json) {
+        printJson(result);
+        return 0;
+      }
+      console.log(
+        `${result.dryRun ? 'dry-run' : 'sent'}: ${result.dryRun ? result.messages.length : result.sent} record(s)` +
+          `${result.broker === null ? '' : ` to ${result.broker}`}`,
+      );
+      for (const message of result.messages.slice(0, 5)) {
+        console.log(`  ${message.topic} <- ${message.payload}`);
+      }
+      if (result.messages.length > 5) console.log(`  ... ${result.messages.length - 5} more`);
+      printLimitations(result.evidence.limitations);
+      return 0;
+    }
+
     case 'infer-transitions': {
       requireTarget(target, 'infer-transitions');
       const result = await inferTransitions({
@@ -480,6 +522,9 @@ usage:
   iot-rea export-telemetry <observations.json> --device-id <id> --out <dir>
                         [--min-confidence n] [--ts-base ms] [--ts-step ms]
                         [--schema-version s] [--json]
+  iot-rea publish-telemetry <telemetry.jsonl> --topic 'devices/{deviceId}/telemetry'
+                        [--broker mqtt://host:1883] [--qos 0|1] [--payload record|values]
+                        [--rate-ms n] [--limit n] [--send] [--insecure] [--json]
   iot-rea infer-transitions <frames.json> [--signature-bytes n]
                         [--channel name] [--mermaid <out.md>|--mermaid -] [--json]
   iot-rea evidence-pack <observations.json> [--max-frames n]
