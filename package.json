@@ -1,6 +1,6 @@
 {
   "name": "iot-rea",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "Evidence-first reverse engineering for IoT captures, signals and firmware",
   "license": "MIT",
   "author": "Rick-yi",
@@ -42,7 +42,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "kaitai-struct-compiler": "^0.11.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

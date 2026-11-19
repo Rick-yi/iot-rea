@@ -6,3 +6,4 @@ dist/
 .zcode/
 .env
 *.pcap.tmp
+coverage/

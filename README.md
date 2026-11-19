@@ -236,6 +236,7 @@ cli / mcp   参数翻译与协议绑定
 ```bash
 npm run typecheck
 npm test          # 缺少 tshark 时集成测试自动跳过，并保留 limitations
+npm run test:coverage   # 覆盖率阈值：statements/lines 60%、branches 60%、functions 75%
 npm run build
 ```
 
