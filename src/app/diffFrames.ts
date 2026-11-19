@@ -13,6 +13,8 @@ import type { ChecksumCandidate } from '../domain/checksum.js';
 import { checksumCandidates } from '../domain/checksum.js';
 import type { DerivedField } from '../domain/derived.js';
 import { detectDerivedFields } from '../domain/derived.js';
+import type { CountField } from '../domain/records.js';
+import { detectCountFields } from '../domain/records.js';
 import type { AlignmentInfo, DiffReport, Observation } from '../domain/diff.js';
 import { diffObservations } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
@@ -41,6 +43,8 @@ export interface SchemaDraft {
   checksums: ChecksumCandidate[];
   /** Length-like fields that describe the frame rather than the payload. */
   derived: DerivedField[];
+  /** Count fields with a constant record stride. */
+  records: CountField[];
   unknowns: string[];
   evidence: Evidence;
 }
@@ -140,6 +144,10 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
   }
 
   const derived = detectDerivedFields(observations, { excludeOffsets: masked });
+  const records = detectCountFields(observations, {
+    excludeOffsets: masked,
+    excludeRanges: derived.map((field) => ({ offset: field.offset, width: field.width })),
+  });
   const alignment = deriveAlignment(observations, derived);
   const differential = diffObservations(observations, { excludeOffsets: masked, alignment: alignment ?? undefined });
   const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 }, { excludeOffsets: masked });
@@ -151,6 +159,10 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     ...(masked.size > 0
       ? [`${masked.size} byte(s) were masked as derived (checksum); they are not treated as payload fields`]
       : []),
+    ...records.map(
+      (field) =>
+        `count field at 0x${field.offset.toString(16)} implies ${field.stride}-byte records with a ${field.trailerBytes}-byte trailer`,
+    ),
     'frame layout outside the compared prefix is not addressed by positional alignment',
     'field semantics (units, scaling, signedness) are hypotheses until replayed on a device',
   ];
@@ -161,6 +173,7 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     fields: inference.fields,
     checksums: checksums.candidates,
     derived,
+    records,
     unknowns,
     evidence: {
       source: { path: parsed.path, sha256: digest, size },

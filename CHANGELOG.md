@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 semantic versioning.
 
+## [0.16.0] - 2026-11-19
+
+### Added
+
+- Count-field / repeated-record detection: a varying count field with a
+  constant record stride and constant trailer is reported structurally.
+- Evidence packs include the detected records; Kaitai drafts emit the count
+  field and a repeated `bytes` array sized by it.
+- `diff-frames` prints count-field/stride information.
+
 ## [0.15.0] - 2026-11-19
 
 ### Added

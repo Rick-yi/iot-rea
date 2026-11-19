@@ -34,6 +34,10 @@ interface LayoutField {
   encoding?: string;
   doc: string;
   priority: number;
+  /** Emit `repeat: expr` / `repeat-expr` for a bytes field sized by a count field. */
+  repeatExpr?: string;
+  /** Cursor position after this field when it is not offset + width. */
+  endOffset?: number;
 }
 
 const SCALAR_TYPES: Record<Exclude<FieldType, 'ascii' | 'bcd2'>, (endian: 'be' | 'le' | null) => string> = {
@@ -87,6 +91,45 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
     });
   }
 
+  // Repeated records: emit the count field plus a bytes array sized by it.
+  for (const record of draft.records) {
+    if (record.confidence < 0.9) continue;
+    if (layout.some((placed) => overlaps(placed, { offset: record.offset, width: record.width }))) continue;
+
+    const recordsStart = record.offset + record.width;
+    const trailerStart = draft.differential.alignedLength - record.trailerBytes;
+    if (trailerStart < recordsStart) continue;
+    if (layout.some((placed) => placed.offset >= recordsStart && placed.offset < trailerStart)) continue;
+    if (draft.checksums.some((checksum) => checksum.position >= recordsStart && checksum.position < trailerStart)) {
+      continue;
+    }
+
+    const countId = sanitizeId(`record_count_${record.offset}`);
+    layout.push({
+      offset: record.offset,
+      width: record.width,
+      id: countId,
+      type:
+        record.type === 'u8'
+          ? 'u1'
+          : record.endian === 'le'
+            ? 'u2le'
+            : 'u2be',
+      doc: `derived record count; ${record.stride}-byte records, ${record.trailerBytes}-byte trailer`,
+      priority: 0.95,
+    });
+    layout.push({
+      offset: recordsStart,
+      width: record.stride,
+      id: sanitizeId(`records_${record.offset}`),
+      size: record.stride,
+      doc: `repeated records sized by ${countId}`,
+      priority: 0.9,
+      repeatExpr: countId,
+      endOffset: trailerStart,
+    });
+  }
+
   // Place checksums only where no inferred field already covers them.
   const seenPositions = new Set<number>();
   for (const checksum of draft.checksums) {
@@ -113,7 +156,7 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
       gap += 1;
     }
     seq.push(field);
-    cursor = field.offset + field.width;
+    cursor = field.endOffset ?? field.offset + field.width;
   }
 
   if (cursor < alignedLength) {
@@ -137,6 +180,10 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
     if (field.type !== undefined) lines.push(`    type: ${field.type}`);
     if (field.size !== undefined) lines.push(`    size: ${field.size}`);
     if (field.encoding !== undefined) lines.push(`    encoding: ${field.encoding}`);
+    if (field.repeatExpr !== undefined) {
+      lines.push('    repeat: expr');
+      lines.push(`    repeat-expr: ${field.repeatExpr}`);
+    }
     lines.push(`    doc: ${quote(field.doc)}`);
   }
 

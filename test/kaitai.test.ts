@@ -40,6 +40,7 @@ function fakeDraft(overrides: Partial<SchemaDraft>): SchemaDraft {
     fields: [],
     checksums: [],
     derived: [],
+    records: [],
     unknowns: [],
     evidence: { source: { path: 'fixture', sha256: '0'.repeat(64), size: 0 } },
     ...overrides,
