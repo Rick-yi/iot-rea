@@ -14,7 +14,7 @@ import { checksumCandidates } from '../domain/checksum.js';
 import type { DerivedField } from '../domain/derived.js';
 import { detectDerivedFields } from '../domain/derived.js';
 import type { CountField } from '../domain/records.js';
-import { detectCountFields } from '../domain/records.js';
+import { detectCountFields, splitRecordObservations, type RecordLayout } from '../domain/records.js';
 import type { AlignmentInfo, DiffReport, Observation } from '../domain/diff.js';
 import { diffObservations } from '../domain/diff.js';
 import type { FieldCandidate } from '../domain/inference.js';
@@ -22,9 +22,11 @@ import { inferFields } from '../domain/inference.js';
 import { parseHex } from '../domain/frame.js';
 import { fileSize, sha256File } from '../providers/process.js';
 
+const labelAtomSchema = z.union([z.number(), z.string(), z.boolean()]);
+
 export const observationSchema = z.object({
   frameId: z.string().min(1),
-  vars: z.record(z.union([z.number(), z.string(), z.boolean()])),
+  vars: z.record(z.union([labelAtomSchema, z.array(labelAtomSchema)])),
   hex: z.string().min(2),
 });
 
@@ -45,6 +47,8 @@ export interface SchemaDraft {
   derived: DerivedField[];
   /** Count fields with a constant record stride. */
   records: CountField[];
+  /** Fields inferred inside one record when array labels were supplied. */
+  recordLayout?: RecordLayout;
   unknowns: string[];
   evidence: Evidence;
 }
@@ -148,6 +152,28 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     excludeOffsets: masked,
     excludeRanges: derived.map((field) => ({ offset: field.offset, width: field.width })),
   });
+  let recordLayout: RecordLayout | undefined;
+  let recordNote: string | undefined;
+  if (records.length > 0) {
+    const count = records[0] as CountField;
+    const split = splitRecordObservations(observations, count);
+    if (split.hasArrayLabels && split.samples.length >= (parsed.minSamples ?? 3)) {
+      const recordInference = inferFields(split.samples, { minSamples: parsed.minSamples ?? 3 });
+      recordLayout = {
+        stride: count.stride,
+        sampleCount: split.samples.length,
+        fields: recordInference.fields,
+        unknowns: [...split.unknowns, ...recordInference.unknowns],
+      };
+      recordNote =
+        recordLayout.fields.length > 0
+          ? `record layout: ${recordLayout.fields.length} field(s) inside ${count.stride}-byte records across ${recordLayout.sampleCount} samples`
+          : `record layout inference found no fields in ${count.stride}-byte records`;
+    } else if (split.hasArrayLabels) {
+      recordNote = `record layout needs at least ${parsed.minSamples ?? 3} records, got ${split.samples.length}`;
+    }
+  }
+
   const alignment = deriveAlignment(observations, derived);
   const differential = diffObservations(observations, { excludeOffsets: masked, alignment: alignment ?? undefined });
   const inference = inferFields(observations, { minSamples: parsed.minSamples ?? 3 }, { excludeOffsets: masked });
@@ -163,6 +189,7 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
       (field) =>
         `count field at 0x${field.offset.toString(16)} implies ${field.stride}-byte records with a ${field.trailerBytes}-byte trailer`,
     ),
+    ...(recordNote === undefined ? [] : [recordNote]),
     'frame layout outside the compared prefix is not addressed by positional alignment',
     'field semantics (units, scaling, signedness) are hypotheses until replayed on a device',
   ];
@@ -174,6 +201,7 @@ export async function diffFrames(input: DiffFramesInput): Promise<SchemaDraft> {
     checksums: checksums.candidates,
     derived,
     records,
+    recordLayout,
     unknowns,
     evidence: {
       source: { path: parsed.path, sha256: digest, size },

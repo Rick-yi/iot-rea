@@ -7,7 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { MCP_TOOLS } from './tools.js';
 
 export const SERVER_NAME = 'iot-rea';
-export const SERVER_VERSION = '0.16.0';
+export const SERVER_VERSION = '0.17.0';
 
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });

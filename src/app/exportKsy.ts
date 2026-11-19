@@ -36,6 +36,8 @@ interface LayoutField {
   priority: number;
   /** Emit `repeat: expr` / `repeat-expr` for a bytes field sized by a count field. */
   repeatExpr?: string;
+  /** Reference a type from the `types:` section instead of scalar/bytes. */
+  typeRef?: string;
   /** Cursor position after this field when it is not offset + width. */
   endOffset?: number;
 }
@@ -54,6 +56,7 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
   const id = sanitizeId(options.id ?? 'inferred_frame');
   const dropped: string[] = [];
   const layout: LayoutField[] = [];
+  const typeLines: string[] = [];
 
   // Stronger hypotheses win an overlap: higher confidence, then wider field.
   const candidates = [...draft.fields]
@@ -105,6 +108,17 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
     }
 
     const countId = sanitizeId(`record_count_${record.offset}`);
+    const recordFields =
+      draft.recordLayout !== undefined &&
+      draft.recordLayout.stride === record.stride &&
+      draft.recordLayout.fields.length > 0
+        ? draft.recordLayout.fields
+        : [];
+    const useNested = recordFields.length > 0;
+    if (useNested) {
+      typeLines.push(...renderRecordType(recordFields, record.stride));
+    }
+
     layout.push({
       offset: record.offset,
       width: record.width,
@@ -122,8 +136,10 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
       offset: recordsStart,
       width: record.stride,
       id: sanitizeId(`records_${record.offset}`),
-      size: record.stride,
-      doc: `repeated records sized by ${countId}`,
+      ...(useNested ? { typeRef: 'record' } : { size: record.stride }),
+      doc: useNested
+        ? `repeated records typed by the nested record definition`
+        : `repeated records sized by ${countId}`,
       priority: 0.9,
       repeatExpr: countId,
       endOffset: trailerStart,
@@ -173,11 +189,14 @@ export function renderKaitai(draft: SchemaDraft, options: KaitaiOptions = {}): K
   if (dropped.length > 0) {
     for (const note of dropped) lines.push(`# dropped: ${singleLine(note)}`);
   }
-  lines.push('', 'meta:', `  id: ${id}`, '  file-extension: bin', '  encoding: UTF-8', '', 'seq:');
+  lines.push('', 'meta:', `  id: ${id}`, '  file-extension: bin', '  encoding: UTF-8');
+  if (typeLines.length > 0) lines.push('', 'types:', ...typeLines);
+  lines.push('', 'seq:');
 
   for (const field of seq) {
     lines.push(`  - id: ${field.id}`);
-    if (field.type !== undefined) lines.push(`    type: ${field.type}`);
+    const typeName = field.typeRef ?? field.type;
+    if (typeName !== undefined) lines.push(`    type: ${typeName}`);
     if (field.size !== undefined) lines.push(`    size: ${field.size}`);
     if (field.encoding !== undefined) lines.push(`    encoding: ${field.encoding}`);
     if (field.repeatExpr !== undefined) {
@@ -292,4 +311,42 @@ function quote(text: string): string {
 
 function singleLine(text: string): string {
   return text.replace(/\s+/g, ' ');
+}
+
+/** Render `types: record:` lines for per-record fields, with explicit gaps. */
+function renderRecordType(fields: FieldCandidate[], stride: number): string[] {
+  const placed = fields
+    .filter((field) => field.confidence >= 0.5 && field.offset + field.width <= stride)
+    .sort((a, b) => a.offset - b.offset || b.width - a.width);
+  const lines: string[] = ['  record:', '    seq:'];
+  let cursor = 0;
+  let gap = 0;
+
+  for (const field of placed) {
+    if (field.offset < cursor) continue;
+    if (field.offset > cursor) {
+      lines.push(
+        `      - id: reserved_${cursor.toString(16)}`,
+        `        size: ${field.offset - cursor}`,
+        `        doc: "uninferred record bytes (gap #${gap})"`,
+      );
+      gap += 1;
+    }
+    const layout = toLayout(field);
+    lines.push(`      - id: ${layout.id}`);
+    if (layout.type !== undefined) lines.push(`        type: ${layout.type}`);
+    if (layout.size !== undefined) lines.push(`        size: ${layout.size}`);
+    if (layout.encoding !== undefined) lines.push(`        encoding: ${layout.encoding}`);
+    lines.push(`        doc: ${JSON.stringify(layout.doc)}`);
+    cursor = field.offset + field.width;
+  }
+
+  if (cursor < stride) {
+    lines.push(
+      `      - id: reserved_${cursor.toString(16)}`,
+      `        size: ${stride - cursor}`,
+      `        doc: "uninferred record bytes (gap #${gap})"`,
+    );
+  }
+  return lines;
 }

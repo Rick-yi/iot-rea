@@ -361,8 +361,8 @@ function matchesApprox(decoded: number, expected: number): boolean {
   return Math.abs(decoded - expected) <= Math.max(1, Math.abs(expected)) * 1e-4;
 }
 
-function expectedNumber(value: number | string | boolean | undefined): number | null {
-  if (value === undefined) return null;
+function expectedNumber(value: unknown): number | null {
+  if (value === undefined || Array.isArray(value)) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'boolean') return value ? 1 : 0;
   const parsed = Number(value);

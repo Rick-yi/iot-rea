@@ -9,11 +9,15 @@
  */
 import type { Frame } from './frame.js';
 
+export type LabelAtom = number | string | boolean;
+/** A label is scalar, or one value per repeated record for array labels. */
+export type VarValue = LabelAtom | LabelAtom[];
+
 export interface Observation {
   /** Native id of the frame this sample came from. */
   frameId: string;
   /** Business values for this sample, e.g. { temperature: 21.0 }. */
-  vars: Record<string, number | string | boolean>;
+  vars: Record<string, VarValue>;
   bytes: Buffer;
 }
 

@@ -105,8 +105,8 @@ export function decodeNumber(
   }
 }
 
-function toNumber(value: number | string | boolean | undefined): number | null {
-  if (value === undefined) return null;
+function toNumber(value: number | string | boolean | Array<number | string | boolean> | undefined): number | null {
+  if (value === undefined || Array.isArray(value)) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'boolean') return value ? 1 : 0;
   const parsed = Number(value);
