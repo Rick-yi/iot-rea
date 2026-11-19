@@ -249,8 +249,9 @@ async function main(): Promise<number> {
         }
         for (const field of result.fields) {
           const endian = field.endian === null ? '' : ` ${field.endian}`;
+          const bit = field.bitOffset === undefined ? '' : ` bit ${field.bitOffset}`;
           console.log(
-            `field ${field.variable}: ${field.type}${endian} @0x${field.offset.toString(16)} width ${field.width} confidence ${field.confidence.toFixed(2)}`,
+            `field ${field.variable}: ${field.type}${endian}${bit} @0x${field.offset.toString(16)} width ${field.width} confidence ${field.confidence.toFixed(2)}`,
           );
         }
         for (const derived of result.derived) {
@@ -269,8 +270,9 @@ async function main(): Promise<number> {
         }
         for (const field of result.recordLayout?.fields ?? []) {
           const endian = field.endian === null ? '' : ` ${field.endian}`;
+          const bit = field.bitOffset === undefined ? '' : ` bit ${field.bitOffset}`;
           console.log(
-            `record field ${field.variable}: ${field.type}${endian} @+0x${field.offset.toString(16)} ` +
+            `record field ${field.variable}: ${field.type}${endian}${bit} @+0x${field.offset.toString(16)} ` +
               `width ${field.width} confidence ${field.confidence.toFixed(2)}`,
           );
         }

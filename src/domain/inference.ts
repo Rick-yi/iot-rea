@@ -15,6 +15,9 @@ export type FieldType =
   | 'u32'
   | 'i32'
   | 'f32'
+  | 'u12'
+  | 'u4'
+  | 'bit'
   | 'bcd2'
   | 'ascii';
 
@@ -33,6 +36,8 @@ export interface FieldCandidate {
   frameIds: string[];
   /** Present only when a linear transform (value -> raw) was inferred. */
   transform?: { kind: 'identity' | 'scaled'; factor?: number };
+  /** Bit position for `u4` (0 or 4) and `bit` (0..7). */
+  bitOffset?: number;
   note?: string;
 }
 
@@ -47,6 +52,7 @@ interface TypeSpec {
   type: FieldType;
   width: number;
   endian: Endian | null;
+  bitOffset?: number;
 }
 
 const NUMERIC_TYPES: TypeSpec[] = [
@@ -62,7 +68,18 @@ const NUMERIC_TYPES: TypeSpec[] = [
   { type: 'i32', width: 4, endian: 'le' },
   { type: 'f32', width: 4, endian: 'be' },
   { type: 'f32', width: 4, endian: 'le' },
+  { type: 'u12', width: 2, endian: 'be' },
+  { type: 'u12', width: 2, endian: 'le' },
+  { type: 'u4', width: 1, endian: null, bitOffset: 0 },
+  { type: 'u4', width: 1, endian: null, bitOffset: 4 },
 ];
+
+const BIT_TYPES: TypeSpec[] = Array.from({ length: 8 }, (_value, bitOffset) => ({
+  type: 'bit' as FieldType,
+  width: 1,
+  endian: null,
+  bitOffset,
+}));
 
 export function decodeNumber(
   type: FieldType,
@@ -70,6 +87,7 @@ export function decodeNumber(
   bytes: Buffer,
   offset: number,
   width: number,
+  bitOffset?: number,
 ): number | null {
   if (offset + width > bytes.length) return null;
   try {
@@ -90,6 +108,20 @@ export function decodeNumber(
         return endian === 'le' ? bytes.readInt32LE(offset) : bytes.readInt32BE(offset);
       case 'f32':
         return endian === 'le' ? bytes.readFloatLE(offset) : bytes.readFloatBE(offset);
+      case 'u12': {
+        if (width !== 2) return null;
+        const first = bytes[offset] ?? 0;
+        const second = bytes[offset + 1] ?? 0;
+        return endian === 'le' ? first | ((second & 0x0f) << 8) : ((first << 8) | second) >>> 4;
+      }
+      case 'u4': {
+        const byte = bytes[offset] ?? 0;
+        return bitOffset === 4 ? byte >> 4 : byte & 0x0f;
+      }
+      case 'bit': {
+        const byte = bytes[offset] ?? 0;
+        return (byte >> (bitOffset ?? 0)) & 1;
+      }
       case 'bcd2': {
         if (width !== 2) return null;
         const hi = bytes[offset] ?? 0;
@@ -131,6 +163,17 @@ function isBetterCandidate(
   return typeRank(type) > typeRank(best.type);
 }
 
+function isBooleanVariable(observations: Observation[], variable: string): boolean {
+  let seen = false;
+  for (const observation of observations) {
+    const value = observation.vars[variable];
+    if (value === undefined || Array.isArray(value)) continue;
+    seen = true;
+    if (typeof value !== 'boolean') return false;
+  }
+  return seen;
+}
+
 function overlapsExcluded(
   offset: number,
   width: number,
@@ -144,7 +187,7 @@ function overlapsExcluded(
 }
 
 function typeRank(type: FieldType): number {
-  if (type === 'u8' || type === 'u16' || type === 'u32') return 3;
+  if (type === 'u8' || type === 'u16' || type === 'u32' || type === 'u12' || type === 'u4' || type === 'bit') return 3;
   if (type === 'f32') return 2;
   return 1;
 }
@@ -197,7 +240,7 @@ export function inferFields(
     const stringValues = observations.every((obs) => typeof obs.vars[variable] === 'string');
     const best = stringValues
       ? bestAsciiCandidate(observations, variable, length, options)
-      : bestNumericCandidate(observations, variable, length, options);
+      : bestNumericCandidate(observations, variable, length, options, isBooleanVariable(observations, variable) ? BIT_TYPES : NUMERIC_TYPES);
 
     if (best !== null) {
       fields.push(best);
@@ -214,25 +257,39 @@ function bestNumericCandidate(
   variable: string,
   length: number,
   options: InferenceOptions,
+  specs: TypeSpec[],
 ): FieldCandidate | null {
   let best: FieldCandidate | null = null;
   const total = observations.length;
 
-  for (const spec of NUMERIC_TYPES) {
+  for (const spec of specs) {
     for (const transform of transformsFor(observations, variable, spec, length)) {
       for (let offset = 0; offset + spec.width <= length; offset += 1) {
         if (overlapsExcluded(offset, spec.width, options.excludeOffsets)) continue;
         let matched = 0;
+        let distinguishing = false;
         for (const obs of observations) {
           const expected = toNumber(obs.vars[variable]);
           if (expected === null) continue;
-          const raw = decodeNumber(spec.type, spec.endian, obs.bytes, offset, spec.width);
+          const raw = decodeNumber(spec.type, spec.endian, obs.bytes, offset, spec.width, spec.bitOffset);
           if (raw === null) continue;
           const value = transform.kind === 'scaled' ? raw / (transform.factor ?? 1) : raw;
           if (matchesDecodedValue(value, expected, spec.type)) matched += 1;
+          if (spec.type === 'u4' || spec.type === 'u12') {
+            const full =
+              spec.type === 'u4'
+                ? (obs.bytes[offset] ?? 0)
+                : spec.endian === 'le'
+                  ? obs.bytes.readUInt16LE(offset)
+                  : obs.bytes.readUInt16BE(offset);
+            if (full !== raw) distinguishing = true;
+          }
         }
         const confidence = matched / total;
         if (confidence < CONFIDENCE_FLOOR) continue;
+        // A nibble/12-bit value that never differs from the enclosing byte
+        // would be reported as u8/u16; require evidence of the packed bits.
+        if ((spec.type === 'u4' || spec.type === 'u12') && !distinguishing) continue;
         if (best !== null && !isBetterCandidate(spec.type, spec.width, confidence, best)) continue;
         best = {
           offset,
@@ -244,6 +301,7 @@ function bestNumericCandidate(
           matched,
           total,
           frameIds: observations.map((obs) => obs.frameId),
+          bitOffset: spec.bitOffset,
           transform,
           note:
             confidence < 1
