@@ -24,14 +24,14 @@ describe.skipIf(!present(modbusPath))('real Modbus capture', () => {
   it('extracts function codes and unit ids through TShark', async () => {
     const result = await inspectCapture({
       path: modbusPath as string,
-      fields: ['frame.number', 'mbtcp.modbus.func_code', 'mbtcp.unit_id'],
+      fields: ['frame.number', 'modbus.func_code', 'mbtcp.unit_id'],
       displayFilter: 'mbtcp',
       matchLimit: null,
     });
 
     expect(result.window.total).toBeGreaterThan(100);
     const codes = result.rows.flatMap((row) => {
-      const value = row.fields['mbtcp.modbus.func_code'];
+      const value = row.fields['modbus.func_code'];
       return value === undefined ? [] : Array.isArray(value) ? value : [value];
     });
     expect(codes).toContain('3');

@@ -115,7 +115,7 @@ export async function inspectPacketCapture(request: TsharkRequest): Promise<Tsha
     });
 
     if (outcome.exitCode !== 0) {
-      const excerpt = outcome.stderr.trim().split(/\r?\n/)[0] ?? '';
+      const excerpt = outcome.stderr.trim().split(/\r?\n/).slice(0, 3).join(' | ');
       throw new IotReaError(
         'invalid_request',
         `tshark exited with ${outcome.exitCode ?? 'signal'}${excerpt === '' ? '' : `: ${excerpt}`}`,
